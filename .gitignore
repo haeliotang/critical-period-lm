@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Environments and local configuration
+.env
+.env.*
+.venv/
+venv/
+
+# Packaging
+build/
+dist/
+
+# Corpora and checkpoints. Large, regenerable, and not evidence.
+data/
+checkpoints/
+
+# Calibration is exploratory and must not be mistaken for a registered run.
+calibration/
+
+# Local scratch. Research artifacts must be added intentionally.
+tmp/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/

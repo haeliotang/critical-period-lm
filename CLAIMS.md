@@ -1,0 +1,97 @@
+# Claim Register
+
+This register defines the strongest claims this study may support. Claims not listed here
+are not authorized, regardless of how the results look.
+
+## Claim C0: the protocol transfers
+
+**Statement.** The deficit-window protocol established for vision networks can be
+instantiated for autoregressive language-model pretraining with a statistics-preserving
+negative control, a compute-matched comparison, and a preregistered recovery budget.
+
+**Evidence required.** A completed grid in which every run shares one configuration and an
+identical total step count, the negative control recovers, and the frozen decision code
+returns a verdict without manual intervention.
+
+**Maximum scope.** Methodological. The protocol is instantiable and its controls behave.
+
+**Forbidden extension.** That the vision result replicates in language. C0 is about the
+instrument, not the finding.
+
+## Claim C1: onset-dependent permanent damage, or its absence
+
+**Statement.** At this model scale, corpus, and budget, a window-shuffle deficit of fixed
+duration applied early in pretraining leaves a larger permanent held-out-loss penalty than
+the same deficit applied later — or it does not, at a stated resolution.
+
+**Evidence required.** The full Section 5.4 conjunction of `preregistration.md`, including
+a recovered negative control and a rejected primary permutation test in the registered
+direction, with `Δ_primary` at or above the registered margin. For the negative form: a
+non-rejecting primary test whose minimum detectable effect is at or below the margin.
+
+**Maximum scope.** One architecture, one corpus, one budget, one deficit pair, one recovery
+multiplier, single-digit seed counts.
+
+**Forbidden extension.** Any statement about large language models, about production
+pretraining, about data-curriculum policy, or about deficits other than the two registered
+here. A result at 10M parameters is a result at 10M parameters.
+
+## Claim C2: the negative control bounds the interpretation
+
+**Statement.** A scar under Deficit S is attributable to the nature of the corruption only
+because Deficit P, which consumes identical budget and preserves the statistical structure
+under relabeling, does not scar.
+
+**Evidence required.** Every registered `permute_early` cell returns `RECOVERED`, with its
+minimum detectable effect reported.
+
+**Maximum scope.** Rules out the compute-loss explanation and the
+any-early-perturbation-scars explanation, for these two deficits.
+
+**Forbidden extension.** That all statistics-preserving perturbations are harmless, or that
+Deficit P is a general-purpose control for other studies. A control that recovers has ruled
+out one alternative, not the class.
+
+## Claim C3: a null here is a bounded null
+
+**Statement.** If no onset effect is detected, the study establishes that any such effect is
+smaller than the reported minimum detectable effect at this scale and budget.
+
+**Evidence required.** A reported minimum detectable effect alongside the non-rejection, and
+an explicit `calibrated null (underpowered)` label wherever that quantity exceeds the
+registered margin.
+
+**Maximum scope.** An upper bound on effect size under these conditions.
+
+**Forbidden extension.** "Language models have no critical periods." Absence of evidence at
+n=4 per cell is a resolution statement, not an existence statement.
+
+## Explicit non-claims
+
+This study cannot establish:
+
+- anything about consciousness, subjective experience, self-modeling, or model welfare;
+- anything about human language acquisition, child development, or biological critical
+  periods, in either direction;
+- that training-order effects in production-scale pretraining resemble these;
+- that data curricula should or should not be ordered in any particular way;
+- that "early training matters" as a general slogan — the registered claim is about one
+  deficit pair under one recovery budget;
+- that the representational (CKA) measures identify a mechanism; they are descriptive;
+- that the TinyStories corpus is representative of natural language;
+- that MLX, this hardware, or this implementation is free of common-mode error.
+
+## Provenance note
+
+The idea for this study emerged from a philosophical conversation about development,
+plasticity, and whether a frozen-weight model can be said to have grown. That lineage may
+appear in a motivation section. It may not appear in a claim. The developmental framing
+generated the hypothesis; it does not license any interpretation of the result, and a
+reviewer who reads a developmental conclusion into these numbers is reading something this
+register forbids.
+
+## Claim transition rule
+
+A completed study authorizes only a new, independently frozen preregistration — for a
+larger scale, for additional deficits, or for an onset sweep. No result carries over
+automatically, and no follow-up inherits this register.

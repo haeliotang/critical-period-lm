@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "critical-period-lm"
+version = "0.0.0"
+description = "Preregistered test of critical learning periods in small language models"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Hao Tang" }]
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+train = ["mlx>=0.20"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
