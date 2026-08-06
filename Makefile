@@ -7,7 +7,10 @@ REQUIRED_FILES := \
 	CLAIMS.md \
 	preregistration.md
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check
+TRAIN_MB ?= 600
+CALIBRATION_STEPS ?= 8000
+
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -38,6 +41,17 @@ freeze-check:
 	else \
 		echo "design not frozen yet: no freeze-manifest.json"; \
 	fi
+
+# Download TinyStories, fit the tokenizer, encode. Writes data/manifest.json, whose
+# digests are folded into every run's config hash.
+data:
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.data prepare --train-mb $(TRAIN_MB)
+
+# Exploratory. Written to calibration/, excluded from every analysis, exempt from the
+# freeze gate. Use it to measure throughput and find the budget at which loss plateaus.
+calibrate:
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
+		--calibration --condition calibration --total-steps $(CALIBRATION_STEPS)
 
 # Registered runs may not exist before the freeze tag does.
 runs-check:

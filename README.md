@@ -55,9 +55,12 @@ preregistration.md   registered design; frozen before the first run
 CLAIMS.md            the strongest claims a result may support
 STATUS.md            mutable pointer to where the study actually is
 src/critical_period_lm/
-  decision_rules.py  frozen judgment logic: exact permutation tests, verdicts
-  deficits.py        frozen definitions of Deficit S and Deficit P
+  decision_rules.py  FROZEN judgment logic: exact permutation tests, verdicts
+  deficits.py        FROZEN definitions of Deficit S and Deficit P
   freeze.py          hashes the design corpus, detects post-freeze drift
+  data.py            TinyStories download, BPE tokenizer, token arrays, digests
+  model.py           small decoder-only transformer in MLX
+  train.py           one run of the grid; writes an immutable run record
 tests/               includes the rehearsal gate for the decision rules
 runs/                append-only run records; empty until the design is frozen
 analysis/            reads runs/, never writes to it
@@ -82,14 +85,36 @@ it had the resolution to see, `INCONCLUSIVE` under a planted null it did not, an
 `DESIGN_FAILURE` when the negative control is planted to scar. A judgment rule that has
 never been run against a known answer is not a registered rule.
 
-## Running the checks
+## Running it
 
 ```bash
 make check
 ```
 
-This compiles the package, runs all tests including the rehearsal gate, verifies the freeze
-if one exists, and refuses to pass if run artifacts appear before the design is frozen.
+Compiles the package, runs all tests including the rehearsal gate, verifies the freeze if
+one exists, and refuses to pass if run artifacts appear before the design is frozen.
+
+```bash
+make data
+```
+
+Downloads TinyStories, fits a 4096-token byte-level BPE on the training text only, encodes
+both splits, and writes `data/manifest.json`. Those digests are folded into every run's
+config hash, so a run record is bound to the corpus it was trained on.
+
+```bash
+make calibrate
+```
+
+An exploratory run, written to `calibration/` rather than `runs/` and exempt from the
+freeze gate. This is how the clean budget `T` and the throughput estimate get measured
+rather than guessed. Nothing measured here may change the endpoint, the margin, the
+direction, or the recovery multiplier.
+
+Two gates in the trainer refuse rather than warn: a registered run will not start unless
+the design is frozen and the freeze verifies, and no run will overwrite an existing record,
+because a repeat of an identical config is a collision to explain rather than a file to
+replace.
 
 ## Statistical note
 

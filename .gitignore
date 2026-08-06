@@ -31,3 +31,6 @@ tmp/
 .DS_Store
 .idea/
 .vscode/
+
+# StillMirror session traces: local, regenerated every session, not evidence.
+.stillmirror/
