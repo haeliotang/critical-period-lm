@@ -30,11 +30,17 @@ direction, with `Δ_primary` at or above the registered margin. For the negative
 non-rejecting primary test whose minimum detectable effect is at or below the margin.
 
 **Maximum scope.** One architecture, one corpus, one budget, one deficit pair, one recovery
-multiplier, single-digit seed counts.
+multiplier, one learning-rate schedule, single-digit seed counts.
 
 **Forbidden extension.** Any statement about large language models, about production
 pretraining, about data-curriculum policy, or about deficits other than the two registered
 here. A result at 10M parameters is a result at 10M parameters.
+
+**Named moderator.** Pawlak (arXiv:2510.09687) reports that critical-period effects can be
+removed by a cyclic learning-rate schedule. This study uses warmup followed by cosine decay
+and does not vary the schedule, so a positive result licenses "under this schedule" and
+never "in language models". A negative result is correspondingly weaker, not stronger: an
+absent effect under one schedule does not rule one out under another.
 
 ## Claim C2: the negative control bounds the interpretation
 
@@ -65,6 +71,13 @@ registered margin.
 
 **Forbidden extension.** "Language models have no critical periods." Absence of evidence at
 n=4 per cell is a resolution statement, not an existence statement.
+
+**Relation to the existing null.** Constantinescu et al. (TACL 2024) found no critical
+period for delayed second-language exposure. A null here would be a second null in a
+different paradigm — degraded input during an early window rather than delayed exposure to
+new material — which is worth reporting precisely because the paradigms are different. It
+would not combine with theirs into a general claim, and the two nulls together still would
+not cover the space.
 
 ## Explicit non-claims
 

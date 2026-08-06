@@ -1,6 +1,6 @@
 # Preregistration: Critical Learning Periods in Small Language Models
 
-**Design version:** `v1-draft` (not frozen)
+**Design version:** `v1.1-draft` (not frozen)
 **Status:** pre-calibration, pre-freeze. No training run may be registered against this
 document until the calibration gate in Section 8.1 closes and the freeze tag exists.
 
@@ -29,18 +29,43 @@ appear in the results or conclusions. See `CLAIMS.md` for the binding claim regi
 
 The design is a domain transfer of an existing protocol. It is not a new protocol.
 
-- Achille, Rovere, Soatto. *Critical Learning Periods in Deep Networks.* ICLR 2019
+- Achille, Rovere, Soatto. *Critical Learning Periods in Deep Networks*, ICLR 2019;
+  circulated on arXiv as *Critical Learning Periods in Deep Neural Networks*
   (arXiv:1711.08856). Source of the deficit-window design, the recovery-budget logic, and
-  the requirement for a statistics-preserving negative control.
+  the requirement for a statistics-preserving negative control. Note the title differs
+  between the arXiv and ICLR records; cite the venue title.
 - Kleinman, Achille, Soatto. *Critical Learning Periods Emerge Even in Deep Linear
-  Networks* (2023). Evidence that the phenomenon is not architecture-specific.
-- Eldan, Li. *TinyStories* (arXiv:2305.07759). Source of the corpus and the evidence that
-  models at this parameter scale produce measurable, readable language behaviour.
-- Kornblith et al. *Similarity of Neural Network Representations Revisited* (2019). Source
-  of the CKA secondary measure.
+  Networks* (arXiv:2308.12221, 2023). Evidence that the phenomenon is not an accident of a
+  particular architecture.
+- Eldan, Li. *TinyStories: How Small Can Language Models Be and Still Speak Coherent
+  English?* (arXiv:2305.07759, 2023). Source of the corpus and the evidence that models at
+  this parameter scale produce measurable, readable language behaviour.
+- Kornblith, Norouzi, Lee, Hinton. *Similarity of Neural Network Representations
+  Revisited* (arXiv:1905.00414, ICML 2019). Source of the CKA secondary measure.
 
-Exact bibliographic identifiers must be verified against the published records before
-freeze. Any correction is a deviation entry, not a silent edit.
+### 2.1 Prior work that constrains the interpretation
+
+Two results bear directly on what this study can conclude, and both were found after the
+design was drafted. Neither makes the question redundant; both narrow the claim.
+
+- Constantinescu, Pimentel, Cotterell, Warstadt. *Investigating Critical Period Effects in
+  Language Acquisition through Neural Language Models*, TACL 2024 (arXiv:2407.19325).
+  Language models show **no** critical period effect when exposure to a second language is
+  delayed, and the authors had to insert a plasticity-decreasing regularizer to manufacture
+  one. The manipulation is delayed exposure to new material, not degraded input during an
+  early window followed by clean input, so it does not answer the question registered here
+  — but it is the closest existing evidence and it points away from an effect. The
+  registered direction in Section 3.2 is retained because it is the direction the vision
+  result predicts, not because it is the more likely outcome.
+- Pawlak. *On the Occurrence of Critical Learning Periods in Neural Networks*
+  (arXiv:2510.09687, 2025). Reports that critical-period effects and warm-starting damage
+  can be avoided by cyclic learning-rate schedules. If that holds, a critical period is a
+  property of a training configuration rather than of learning as such, and any result here
+  is conditional on the registered schedule. The schedule is therefore a registered
+  constant and a named scope limit, not an implementation detail.
+
+Exact bibliographic identifiers were checked against the arXiv and venue records on
+2026-08-06. Any later correction is a deviation entry, not a silent edit.
 
 ## 3. Registered question and comparison
 
