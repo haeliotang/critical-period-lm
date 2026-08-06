@@ -64,6 +64,7 @@ class TrainConfig:
     total_steps: int = 43_200
     batch_size: int = 32
     learning_rate: float = 3e-4
+    final_learning_rate: float = 0.0
     warmup_steps: int = 500
     weight_decay: float = 0.1
     grad_clip: float = 1.0
@@ -137,11 +138,22 @@ def evaluate(model: Transformer, batches: np.ndarray) -> float:
 
 
 def build_schedule(config: TrainConfig):
+    """Linear warmup, then cosine decay to zero.
+
+    Decaying to zero rather than to a fraction of peak is load-bearing for the primary
+    contrast, not a tuning preference. Under a schedule that leaves a non-trivial learning
+    rate at the end, the loss never stops falling, so "the model has recovered" never
+    arrives, and the late arm's smaller post-deficit budget becomes a permanent handicap
+    that imitates a critical period in reverse. Annealing to zero makes convergence a
+    property of the schedule rather than of the absolute step count, which is what lets the
+    two arms be compared at all — and what lets a scaled-down pilot be a valid rehearsal of
+    a full-budget study.
+    """
     warmup = optim.linear_schedule(0.0, config.learning_rate, config.warmup_steps)
     decay = optim.cosine_decay(
         config.learning_rate,
         max(config.total_steps - config.warmup_steps, 1),
-        config.learning_rate * 0.1,
+        config.final_learning_rate,
     )
     return optim.join_schedules([warmup, decay], [config.warmup_steps])
 

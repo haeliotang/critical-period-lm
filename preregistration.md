@@ -1,6 +1,6 @@
 # Preregistration: Critical Learning Periods in Small Language Models
 
-**Design version:** `v1.1-draft` (not frozen)
+**Design version:** `v1.2-draft` (not frozen)
 **Status:** pre-calibration, pre-freeze. No training run may be registered against this
 document until the calibration gate in Section 8.1 closes and the freeze tag exists.
 
@@ -108,6 +108,15 @@ differ only in the deficit schedule and the seed.
 Training and evaluation run locally under MLX on Apple silicon. The hardware and the
 measured throughput are recorded in the freeze so that the budget is auditable.
 
+**The learning-rate schedule is linear warmup followed by cosine decay to exactly zero at
+`T_total`.** This is a registered design decision, not a tuning choice, and the reason is
+Section 4.5. Decaying to a fraction of peak leaves the loss still falling at the end of
+training, which means "the model has recovered" is a state no run ever reaches; annealing
+to zero makes convergence a property of the schedule rather than of the absolute step
+count. A consequence worth stating because it is used: a scaled-down run under this
+schedule converges at its own `T_total`, so a short pilot is a valid rehearsal of a
+full-budget study rather than a truncated one.
+
 ### 4.2 Deficits
 
 Both deficits are applied to the *training* stream only. Evaluation data is never
@@ -174,6 +183,31 @@ curves is not evidence.
 
 The baseline trains on clean data for the identical `T_total`, so no condition has a step
 or token advantage over any other.
+
+### 4.5 The recovery asymmetry, and why the schedule addresses it
+
+The two arms are matched on total steps and on total clean steps — both see 40,000 clean
+steps out of 43,200 at `T = 20,000`. They are **not** matched on training *after* the
+deficit: the early arm has 40,000 steps left, the late arm 30,000. Post-deficit training is
+what repairs damage, so this is not a cosmetic difference.
+
+It matters exactly as much as the loss is still moving. Under the log-shaped tail measured
+in calibration run 1, the difference between 40,000 and 30,000 remaining steps was worth
+about 0.075 nats — seven times the margin floor, and comparable to the largest effect
+observed anywhere in pilot 1. A design in which the arms differ by seven margins for
+reasons having nothing to do with onset cannot test what it claims to test.
+
+Annealing the learning rate to zero is the registered response. When both arms have
+converged, remaining budget stops converting into loss, and the asymmetry stops being worth
+anything. **The convergence check in Section 8.1 is therefore not a formality: it is the
+condition under which the primary contrast is interpretable at all.** If the baseline does
+not meet it, the study does not proceed.
+
+The residual asymmetry runs against the registered direction — the early arm keeps whatever
+advantage remains — so the primary test is conservative for the registered hypothesis. That
+also means the reverse finding is uninterpretable rather than informative: a `late > early`
+result is what the asymmetry predicts on its own and will be reported as such, never as
+evidence against a critical period.
 
 ## 5. Outcomes
 
@@ -296,9 +330,21 @@ below 5 seeds, the `permute_early_N4` cell, and the recovery multiplier `R`.
 ### 8.1 Calibration gate
 
 The following are measured, not guessed, and are then frozen: throughput on the target
-hardware, the clean budget `T` at which baseline validation loss has visibly plateaued,
-the resulting `T_total`, the full grid wall-clock estimate, and the architecture and
-optimizer constants.
+hardware, the clean budget `T`, the resulting `T_total`, the full grid wall-clock estimate,
+and the architecture and optimizer constants.
+
+**Convergence criterion.** `T` is admissible only if a clean baseline run at the resulting
+`T_total` improves by **less than one registered margin over its final 10% of steps**.
+
+The earlier wording — train until the loss "has visibly plateaued" — described a state that
+does not exist. Under a log-shaped tail the improvement over the final fraction `f` is
+`b·ln(1/(1−f))`, which is the same number at every budget: at the rate measured in
+calibration run 1, the last 10% of training always bought 0.0275 nats whether the run was
+20,000 steps or 200,000. No `T` satisfies a criterion of that form, which is why the
+schedule now anneals to zero and why the criterion is stated against the margin.
+
+The criterion is checked on the baseline only, before the grid runs, and it is a gate:
+failing it means the design does not proceed at that `T`, not that the threshold moves.
 
 Calibration runs are exploratory. They are labeled as such, they are excluded from every
 analysis, and they are stored outside `runs/`. Nothing measured during calibration may be

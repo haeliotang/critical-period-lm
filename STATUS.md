@@ -1,11 +1,11 @@
 # Study status
 
 **Updated:** 2026-08-06
-**Design version:** `v1.1-draft`
-**Lifecycle state:** `DESIGN-DRAFT; PILOT-1-INVALID; PRE-FREEZE`
-**Authorized next action:** settle the recovery-asymmetry question, then re-run the pilot at
-the corrected geometry to find out whether the negative control recovers. No registered
-training run is authorized, and no grid should run while the control is unproven.
+**Design version:** `v1.2-draft`
+**Lifecycle state:** `DESIGN-DRAFT; PILOT-2-RUNNING; PRE-FREEZE`
+**Authorized next action:** read out pilot 2, which tests whether the negative control
+recovers under the corrected geometry and the zero-annealed schedule. No registered training
+run is authorized, and no grid should run while the control is unproven.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
 pipeline, the model, and the trainer all exist. `make check` passes: 73 tests, including the
@@ -142,20 +142,50 @@ informative. The learning-rate schedule compounds it in the same direction — t
 sits and recovers at a lower point on the cosine decay. **This is a real design limitation
 that nobody had noticed before the pilot, and it is not yet resolved.**
 
+## Calibration run 2: the convergence gate, under cosine decay to zero
+
+One clean baseline, 5,400 steps, seed 0, evaluated every 200 steps to resolve the tail.
+The design response to the recovery asymmetry was to anneal the learning rate to exactly
+zero at `T_total`, making convergence a property of the schedule rather than of the
+absolute step count. The gate in Section 8.1 is whether the baseline improves by less than
+one margin over its final 10%.
+
+| | Decay to 0.1× peak | Decay to zero |
+| --- | --- | --- |
+| Improvement over final 10% | 0.0275 predicted | **0.0013 measured** |
+| Against the 0.0108 margin | 2.5 margins — fails | an eighth of a margin — **passes** |
+| Final validation loss | 2.0208 | 2.0406 |
+
+Tail increments: 5,000 → 5,200 is 0.0011, 5,200 → 5,400 is 0.0002. The curve is genuinely
+flat at the end rather than merely slow.
+
+The gate is bought at a cost: final loss is 0.0198 nats worse, about two margins. Annealing
+to zero means a lower average learning rate and so less total progress. That is the right
+trade here — the study is not competing on absolute loss, and without convergence the
+primary contrast is not interpretable at any loss.
+
+**Consequence for the budget.** Because convergence now follows the schedule and not the
+step count, a 5,400-step run converges at 5,400 steps. A scaled-down pilot is therefore a
+valid rehearsal of a full-budget study rather than a truncated one, and pilot 2 costs 5.4
+hours instead of 21.
+
 ## What still has to happen before the freeze
 
-1. **Decide what to do about the recovery asymmetry**, above. It is the one genuinely open
-   design question; the others are arithmetic.
-2. **Re-run the pilot at the corrected geometry** with a budget long enough to contain a
-   real recovery phase, and see whether Deficit P recovers when it is actually given the
-   chance. Until that is known, the negative control is unproven and no grid should run.
-3. **Redefine the budget criterion.** "Plateaued" is unreachable under a log law; see
-   below. Whatever replaces it goes in writing before `T` is chosen, not after the curves
-   have been looked at.
+1. ~~Decide what to do about the recovery asymmetry.~~ Settled: anneal to zero, registered
+   in Sections 4.1 and 4.5, gate in 8.1, passed by calibration run 2.
+2. **Pilot 2 — running.** Corrected geometry, cosine to zero, 14 runs at 5,400 steps. The
+   question it exists to answer is whether Deficit P recovers when it is actually given the
+   recovery it was promised. Until that is known the negative control is unproven and no
+   grid should run.
+3. **Choose `T`** and re-check the convergence gate at the chosen `T_total`. Passing at
+   5,400 steps does not automatically transfer, though the schedule argument says it
+   should.
 4. **Apply the Section 7.4 budget gate** and declare the wall-clock ceiling, which still
    does not exist.
 5. ~~Verify the bibliographic identifiers.~~ Done 2026-08-06; it turned up two papers absent
    from the draft, both now in Section 2.1, both narrowing the claim.
+6. **Re-measure the budget table.** The figures above are from the old schedule; throughput
+   is unchanged but the loss column no longer applies.
 
 ## Known open design questions
 
