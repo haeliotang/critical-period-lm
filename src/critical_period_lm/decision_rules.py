@@ -26,7 +26,9 @@ from statistics import fmean, stdev
 ALPHA = 0.05
 MARGIN_SD_MULTIPLE = 3.0
 MARGIN_FLOOR_NATS = 0.01
-RECOVERY_MULTIPLIER = 2.0
+# The budget geometry (recovery multiplier, deficit fractions, late onset) lives in
+# deficits.py, next to the code that applies it. It used to be declared here and used
+# nowhere, which is how the pilot came to be run at a geometry the design never specified.
 
 BASELINE = "baseline"
 PRIMARY_EARLY = "shuffle_early_N4"

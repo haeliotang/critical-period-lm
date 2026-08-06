@@ -11,13 +11,18 @@ import unittest
 import numpy as np
 
 from critical_period_lm.deficits import (
+    DEFICIT_FRACTIONS,
     NONE,
     PERMUTE,
+    RECOVERY_MULTIPLIER,
     SHUFFLE,
     SHUFFLE_WINDOW,
+    TOTAL_BUDGET_MULTIPLE,
     DeficitSchedule,
     apply_vocab_permutation,
+    clean_budget,
     make_vocab_permutation,
+    steps_from_clean_budget,
     window_shuffle,
 )
 
@@ -92,6 +97,36 @@ class VocabPermutationTests(unittest.TestCase):
         np.testing.assert_array_equal(
             make_vocab_permutation(512, seed=7), make_vocab_permutation(512, seed=7)
         )
+
+
+class BudgetGeometryTests(unittest.TestCase):
+    """The registered budget arithmetic, Sections 4.3 and 4.4.
+
+    These live in the freeze corpus because pilot 1 was run at a geometry the design never
+    specified: the fractions were applied to the run length instead of to the clean budget,
+    which shrank the recovery allowance from 12.5:1 to 5.2:1 and doubled the asymmetry
+    between the two arms. The constant that would have prevented it existed but was used
+    nowhere.
+    """
+
+    def test_the_total_budget_multiple_is_the_registered_one(self):
+        self.assertEqual(RECOVERY_MULTIPLIER, 2.0)
+        self.assertEqual(max(DEFICIT_FRACTIONS), 0.16)
+        self.assertAlmostEqual(TOTAL_BUDGET_MULTIPLE, 2.16)
+
+    def test_the_clean_budget_inverts_the_total(self):
+        self.assertAlmostEqual(clean_budget(43_200), 20_000)
+
+    def test_the_largest_deficit_is_a_small_fraction_of_the_run(self):
+        # 0.16 of T is 7.4% of T_total. If this ever reads 16%, the denominator is wrong.
+        steps = steps_from_clean_budget(43_200, 0.16)
+        self.assertEqual(steps, 3_200)
+        self.assertAlmostEqual(steps / 43_200, 0.074, places=3)
+
+    def test_recovery_dwarfs_the_largest_deficit(self):
+        total = 43_200
+        deficit = steps_from_clean_budget(total, max(DEFICIT_FRACTIONS))
+        self.assertGreaterEqual((total - deficit) / deficit, 12.0)
 
 
 class ScheduleTests(unittest.TestCase):

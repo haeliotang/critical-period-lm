@@ -21,6 +21,34 @@ PERMUTE = "permute"
 # Registered window size for Deficit S, in tokens.
 SHUFFLE_WINDOW = 16
 
+# --- Registered budget geometry, Sections 4.3 and 4.4 -------------------------------
+#
+# Deficit onsets and durations are fractions of the CLEAN budget T, not of the total run
+# length. Every run is `T_total = N4 + R*T = 2.16*T` steps long, so a fraction of T is a
+# 2.16-times-smaller fraction of the run. Getting this denominator wrong shrinks the
+# recovery allowance and inflates the asymmetry between the early and late arms, which is
+# exactly what happened in pilot 1: the deficit ran at 16% of training instead of 7.4%, and
+# the late arm was left with 2.5 times less post-deficit training than the early arm
+# instead of 1.33 times less.
+#
+# These constants live in the freeze corpus and are applied by `steps_from_clean_budget`.
+# They are not to be re-derived at a call site.
+
+RECOVERY_MULTIPLIER = 2.0
+DEFICIT_FRACTIONS = (0.02, 0.04, 0.08, 0.16)
+LATE_ONSET_FRACTION = 0.5
+TOTAL_BUDGET_MULTIPLE = max(DEFICIT_FRACTIONS) + RECOVERY_MULTIPLIER  # 2.16
+
+
+def clean_budget(total_steps: int) -> float:
+    """Recover `T` from a run's total length. The inverse of `T_total = 2.16*T`."""
+    return total_steps / TOTAL_BUDGET_MULTIPLE
+
+
+def steps_from_clean_budget(total_steps: int, fraction: float) -> int:
+    """Convert a registered fraction of `T` into optimizer steps."""
+    return round(fraction * clean_budget(total_steps))
+
 
 def window_shuffle(
     tokens: np.ndarray, rng: np.random.Generator, window: int = SHUFFLE_WINDOW

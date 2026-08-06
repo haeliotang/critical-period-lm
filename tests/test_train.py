@@ -96,15 +96,37 @@ class EvaluationTests(unittest.TestCase):
 
 
 class ScheduleResolutionTests(unittest.TestCase):
-    def test_fractions_resolve_to_steps(self):
+    def test_fractions_resolve_against_the_clean_budget_not_the_run_length(self):
+        # T_total = 43,200 means T = 20,000. A 0.16 fraction is 3,200 steps, which is 7.4%
+        # of the run, not 16%. Pilot 1 was run at the wrong denominator and the recovery
+        # allowance came out less than half of what the design specifies.
         config = TrainConfig(
-            deficit=SHUFFLE, onset_frac=0.5, duration_frac=0.16, total_steps=40_000
+            deficit=SHUFFLE, onset_frac=0.5, duration_frac=0.16, total_steps=43_200
         )
         schedule = config.schedule()
-        self.assertEqual(schedule.onset_step, 20_000)
-        self.assertEqual(schedule.duration_steps, 6_400)
-        self.assertTrue(schedule.active_at(20_000))
-        self.assertFalse(schedule.active_at(26_400))
+        self.assertEqual(schedule.onset_step, 10_000)
+        self.assertEqual(schedule.duration_steps, 3_200)
+        self.assertTrue(schedule.active_at(10_000))
+        self.assertFalse(schedule.active_at(13_200))
+
+    def test_the_two_arms_receive_equal_total_clean_training(self):
+        # Matched on clean steps and on total steps; they differ only in where the deficit
+        # sits, which is the whole point of the primary contrast.
+        total = 43_200
+        early = TrainConfig(
+            deficit=SHUFFLE, onset_frac=0.0, duration_frac=0.16, total_steps=total
+        ).schedule()
+        late = TrainConfig(
+            deficit=SHUFFLE, onset_frac=0.5, duration_frac=0.16, total_steps=total
+        ).schedule()
+        self.assertEqual(
+            total - early.duration_steps, total - late.duration_steps
+        )
+        # But post-deficit recovery is not matched, and that asymmetry is a known
+        # limitation rather than an accident. It runs against the registered direction.
+        self.assertGreater(
+            total - early.duration_steps, total - late.onset_step - late.duration_steps
+        )
 
     def test_the_permute_deficit_gets_its_fixed_permutation(self):
         schedule = TrainConfig(

@@ -37,7 +37,13 @@ import numpy as np
 
 from critical_period_lm import freeze
 from critical_period_lm.data import DATA_DIR, load_tokens
-from critical_period_lm.deficits import NONE, PERMUTE, DeficitSchedule, make_vocab_permutation
+from critical_period_lm.deficits import (
+    NONE,
+    PERMUTE,
+    DeficitSchedule,
+    make_vocab_permutation,
+    steps_from_clean_budget,
+)
 from critical_period_lm.model import ModelConfig, Transformer
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,7 +82,12 @@ class TrainConfig:
         return hashlib.sha256(canonical).hexdigest()[:16]
 
     def schedule(self) -> DeficitSchedule:
-        """Deficit onset and duration are fractions of total steps, resolved once here."""
+        """Resolve the deficit window into steps.
+
+        Onset and duration are fractions of the clean budget `T`, not of the run length —
+        see the geometry note in `deficits.py`. The conversion is done there so that the
+        denominator is bound by the freeze rather than chosen at a call site.
+        """
         if self.deficit == NONE:
             return DeficitSchedule()
         permutation = (
@@ -86,8 +97,8 @@ class TrainConfig:
         )
         return DeficitSchedule(
             kind=self.deficit,
-            onset_step=round(self.onset_frac * self.total_steps),
-            duration_steps=round(self.duration_frac * self.total_steps),
+            onset_step=steps_from_clean_budget(self.total_steps, self.onset_frac),
+            duration_steps=steps_from_clean_budget(self.total_steps, self.duration_frac),
             vocab_permutation=permutation,
         )
 

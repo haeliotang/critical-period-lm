@@ -2,12 +2,13 @@
 
 **Updated:** 2026-08-06
 **Design version:** `v1.1-draft`
-**Lifecycle state:** `DESIGN-DRAFT; PILOT-RUNNING; PRE-FREEZE`
-**Authorized next action:** read out the running pilot, then settle the budget criterion,
-`T`, and the Section 7.4 reduction. No registered training run is authorized.
+**Lifecycle state:** `DESIGN-DRAFT; PILOT-1-INVALID; PRE-FREEZE`
+**Authorized next action:** settle the recovery-asymmetry question, then re-run the pilot at
+the corrected geometry to find out whether the negative control recovers. No registered
+training run is authorized, and no grid should run while the control is unproven.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
-pipeline, the model, and the trainer all exist. `make check` passes: 68 tests, including the
+pipeline, the model, and the trainer all exist. `make check` passes: 73 tests, including the
 Section 7.2 rehearsal gate, in which the frozen decision code returns each of its four
 verdicts against a planted ground truth.
 
@@ -15,8 +16,9 @@ Nothing is frozen. `freeze-manifest.json` does not exist, so `make freeze-check`
 "not frozen", the trainer refuses any non-calibration run, and `make runs-check` refuses to
 pass if anything appears in `runs/`.
 
-`runs/` is empty and `results/` is empty. Every number below came from an exploratory
-calibration run under `calibration/`, which is excluded from every analysis.
+`runs/` is empty and `results/` is empty. Every number below came from exploratory runs
+under `calibration/`, which are excluded from every registered analysis and cannot support
+any claim in `CLAIMS.md`.
 
 ## Corpus
 
@@ -70,27 +72,90 @@ make no allowance for thermal throttling or for the machine being used for anyth
 Disk is not a constraint: run records hold curves and metrics, no checkpoints. 25 GB free
 after the corpus.
 
+## Pilot 1: complete, invalid, informative
+
+14 runs at 5,400 steps. Verdict `DESIGN_FAILURE` — the negative control scarred. Archived
+under `calibration/archive/pilot1-wrong-geometry/`.
+
+| Condition | n | Delta vs baseline | p | Verdict |
+| --- | --- | --- | --- | --- |
+| `permute_early_N4` | 3 | +0.0815 | 0.0179 | SCAR |
+| `shuffle_late_N4` | 3 | +0.0564 | 0.0179 | SCAR |
+| `shuffle_early_N4` | 3 | +0.0358 | 0.0179 | SCAR |
+
+Baseline mean 2.0208, seed SD 0.0036, margin 0.0108. Primary contrast −0.0207 (p = 1.000):
+the late arm was worse than the early arm, the opposite of the registered direction.
+
+**The pilot was run at a geometry the design never specified, and that is an error on the
+implementation side, not a finding.** `TrainConfig.schedule` resolved `onset_frac` and
+`duration_frac` against the run length, while the design defines them as fractions of the
+clean budget `T`, where `T_total = 2.16·T`. Consequences, all in the direction that would
+manufacture this exact result:
+
+| | Pilot 1 as run | Registered geometry |
+| --- | --- | --- |
+| Deficit length | 16.0% of the run | 7.4% of the run |
+| Recovery-to-deficit ratio | 5.2 : 1 | 12.5 : 1 |
+| Post-deficit steps, early arm | 4,536 | 40,000 |
+| Post-deficit steps, late arm | 1,836 | 30,000 |
+| Early : late recovery asymmetry | 2.47× | 1.33× |
+
+`RECOVERY_MULTIPLIER = 2.0` was declared in `decision_rules.py` and referenced by no code at
+all, so the registered budget arithmetic existed only in prose. It now lives in
+`deficits.py` beside the code that applies it, with `steps_from_clean_budget` as the single
+conversion point, and four tests in the freeze corpus pin the geometry.
+
+### What pilot 1 does establish
+
+- **The instrument is sharp.** Baseline seed SD is 0.0036 nats — a quarter of the margin
+  floor. The margin therefore sits at 0.0108 and is set by the floor, not by noise. Seed
+  variance is not going to be what limits this study.
+- **Both deficits bite.** All three deficit cells separated from baseline at the smallest
+  attainable p for 3 versus 5. The manipulations do something measurable.
+- **The analysis path works on real records**, end to end, and returned `DESIGN_FAILURE`
+  from the negative control before reading the primary contrast, which is the order the
+  design specifies.
+
+### What pilot 1 cannot establish, by construction
+
+Whether Deficit P recovers **when it is given the recovery budget it was promised**. At
+5,400 total steps there was effectively no recovery phase: the control spent 16% of the
+entire run learning an embedding table that was then invalidated, and 4,536 steps later it
+was still 0.08 nats behind. That is what a lag looks like, and it is indistinguishable here
+from a scar — which is precisely the open question recorded below.
+
+The reversed primary direction has the same status. The late arm had 2.5 times less
+post-deficit training than the early arm in this geometry. "Late is worse" is what that
+asymmetry predicts on its own, with no critical period involved.
+
+### The asymmetry does not disappear at the correct geometry
+
+Both arms get exactly 40,000 clean steps and 43,200 total steps, so they are matched on
+compute. They are **not** matched on *post-deficit* training: 40,000 against 30,000, a
+factor of 1.33. Recovery opportunity is what determines whether damage is repaired, so the
+two arms are not interchangeable.
+
+This runs against the registered direction, so the primary test is conservative: an
+observed `early > late` would hold despite the handicap. But a null is correspondingly
+weaker than it looks, and a `late > early` result is uninterpretable rather than
+informative. The learning-rate schedule compounds it in the same direction — the late arm
+sits and recovers at a lower point on the cosine decay. **This is a real design limitation
+that nobody had noticed before the pilot, and it is not yet resolved.**
+
 ## What still has to happen before the freeze
 
-1. **Pilot — running.** A scaled-down rehearsal of the primary contrast at 5,400 steps:
-   5 baseline seeds plus 3 each of `shuffle_early_N4`, `shuffle_late_N4` and
-   `permute_early_N4`, 14 runs, about 5.3 hours. It answers four things at once — baseline
-   seed variance, whether Deficit S hurts, whether Deficit P recovers, and whether the
-   analysis path works on real records instead of synthetic ones. `make pilot`.
-
-   Seed variance is the number everything hangs on: `margin = max(3·SD_baseline, 0.01)`, so
-   `SD_baseline` sets the magnitude bar, every per-cell verdict, and every minimum
-   detectable effect. Measuring it at 5,400 steps is conservative — early-training variance
-   is normally larger than late-training variance, so the resulting power estimate is a
-   floor rather than a promise.
-2. **Redefine the budget criterion.** "Plateaued" is unreachable under a log law; see the
-   open question below. Whatever replaces it has to be written down before `T` is chosen,
-   not after the pilot curves have been looked at.
-3. **Apply the Section 7.4 budget gate** if the chosen grid exceeds the wall-clock ceiling,
-   and declare the ceiling itself, which still does not exist.
-4. ~~Verify the four bibliographic identifiers.~~ Done 2026-08-06, and it turned up two
-   papers that were not in the draft; both are now in Section 2.1 and both narrow the
-   claim. See the note below.
+1. **Decide what to do about the recovery asymmetry**, above. It is the one genuinely open
+   design question; the others are arithmetic.
+2. **Re-run the pilot at the corrected geometry** with a budget long enough to contain a
+   real recovery phase, and see whether Deficit P recovers when it is actually given the
+   chance. Until that is known, the negative control is unproven and no grid should run.
+3. **Redefine the budget criterion.** "Plateaued" is unreachable under a log law; see
+   below. Whatever replaces it goes in writing before `T` is chosen, not after the curves
+   have been looked at.
+4. **Apply the Section 7.4 budget gate** and declare the wall-clock ceiling, which still
+   does not exist.
+5. ~~Verify the bibliographic identifiers.~~ Done 2026-08-06; it turned up two papers absent
+   from the draft, both now in Section 2.1, both narrowing the claim.
 
 ## Known open design questions
 
