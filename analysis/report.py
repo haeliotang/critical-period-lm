@@ -55,72 +55,61 @@ def load_runs(directory: Path) -> tuple[list[RunRecord], list[dict]]:
     return records, raw
 
 
-def random_baseline_loss(raw: list[dict]) -> float | None:
-    """Loss of a uniform predictor: the top of the range the model had to traverse."""
-    vocab_sizes = {item["data_manifest"].get("vocab_size") for item in raw}
-    if len(vocab_sizes) != 1 or None in vocab_sizes:
-        return None
-    return math.log(vocab_sizes.pop())
-
-
 def format_report(result, records: list[RunRecord], raw: list[dict], exploratory: bool) -> str:
     lines = ["# Study report", ""]
     if exploratory:
         lines += [EXPLORATORY_BANNER, ""]
 
-    lines += [
-        f"**Verdict:** `{result.verdict}`",
-        "",
-        "## Basis",
-        "",
-    ]
+    lines += [f"**Verdict:** `{result.verdict}`", "", "## Basis", ""]
     lines += [f"- {reason}" for reason in result.reasons] or ["- no reasons recorded"]
 
     if math.isnan(result.margin):
-        lines += ["", "The grid did not reach the point where a margin could be computed."]
+        lines += ["", "The ladder did not reach the point where a margin could be computed."]
         return "\n".join(lines) + "\n"
 
     lines += [
         "",
         "## Instrument",
         "",
-        f"- Baseline mean: {result.baseline_mean:.4f} nats/token "
-        f"across {sum(r.condition == 'baseline' for r in records)} seeds",
-        f"- Baseline seed SD: {result.baseline_sd:.4f}",
-        f"- Registered margin: {result.margin:.4f} "
-        f"(max of 3 x SD and the 0.01 floor)",
+        f"- Top budget: {result.top_budget:,} steps",
+        f"- Baseline seed SD at the top budget: {result.baseline_sd:.4f}",
+        f"- Registered margin: {result.margin:.4f} (max of 3 x SD and the 0.01 floor)",
         "",
-        "## Primary contrast",
+        "## Does the damage decay?",
+        "",
+        "Gap to baseline, paired by seed, by budget. A gap that shrinks as the budget grows",
+        "is unfinished recovery; one that stays put survived every budget increase applied.",
+        "",
+        "| Condition | " + " | ".join(f"{b:,}" for b in result.ladders[0].budgets)
+        + " | slope | p | verdict |",
+        "| --- |" + " --- |" * (len(result.ladders[0].budgets) + 3),
+    ]
+    for ladder in result.ladders:
+        gaps = " | ".join(f"{g:+.4f}" for g in ladder.mean_gaps)
+        lines.append(
+            f"| `{ladder.condition}` | {gaps} | {ladder.slope:+.4f} | "
+            f"{ladder.slope_p:.4f} | {ladder.label} |"
+        )
+
+    lines += [
+        "",
+        "## Primary contrast, at the top budget",
         "",
         f"- Delta (early minus late): {result.primary_delta:+.4f} nats/token",
         f"- Exact permutation p: {result.primary_p_value:.4f}",
         f"- Minimum detectable effect: {result.primary_mde:.4f}",
         "",
-        "## Cells",
-        "",
-        "| Condition | n | Delta vs baseline | p | MDE | Verdict |",
-        "| --- | --- | --- | --- | --- | --- |",
-    ]
-    for cell in result.cells:
-        mde = "unbounded" if math.isinf(cell.mde) else f"{cell.mde:.4f}"
-        lines.append(
-            f"| `{cell.condition}` | {cell.n} | {cell.delta:+.4f} | "
-            f"{cell.p_value:.4f} | {mde} | {cell.label} |"
-        )
-
-    lines += [
-        "",
         "## Runs included",
         "",
         "Every run record found was included. There is no exclusion rule.",
         "",
-        "| Condition | Seed | Final eval loss | Total steps |",
+        "| Condition | Budget | Seed | Final eval loss |",
         "| --- | --- | --- | --- |",
     ]
-    for item in sorted(raw, key=lambda r: (r["condition"], r["seed"])):
+    for item in sorted(raw, key=lambda r: (r["condition"], r["total_steps"], r["seed"])):
         lines.append(
-            f"| `{item['condition']}` | {item['seed']} | "
-            f"{item['final_eval_loss']:.4f} | {item['total_steps']} |"
+            f"| `{item['condition']}` | {item['total_steps']:,} | {item['seed']} | "
+            f"{item['final_eval_loss']:.4f} |"
         )
 
     return "\n".join(lines) + "\n"
@@ -157,7 +146,7 @@ def main() -> int:
         print(f"no run records under {source}", file=sys.stderr)
         return 1
 
-    result = study_verdict(records, random_baseline_loss(raw))
+    result = study_verdict(records)
     report = format_report(result, records, raw, exploratory=args.calibration)
 
     destination.mkdir(parents=True, exist_ok=True)

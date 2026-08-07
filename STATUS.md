@@ -1,13 +1,13 @@
 # Study status
 
 **Updated:** 2026-08-06
-**Design version:** `v1.3-draft`
-**Lifecycle state:** `DESIGN-DRAFT; ENDPOINT-UNDER-REVIEW; PRE-FREEZE`
-**Authorized next action:** decide whether the primary endpoint moves from a single-budget
-loss difference to a budget-asymptotic one. No registered training run is authorized.
+**Design version:** `v2-draft`
+**Lifecycle state:** `DESIGN-V2-DRAFT; LADDER-1-RUNNING; PRE-FREEZE`
+**Authorized next action:** read out ladder 1 and apply the registered extension rule if it
+fires. No registered training run is authorized.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
-pipeline, the model, and the trainer all exist. `make check` passes: 82 tests, including the
+pipeline, the model, and the trainer all exist. `make check` passes: 83 tests, including the
 Section 7.2 rehearsal gate, in which the frozen decision code returns each of its four
 verdicts against a planted ground truth.
 
@@ -264,27 +264,58 @@ Shortening warmup from 500 steps to 108 doubled baseline seed variance: SD 0.003
 margin 0.0100 to 0.0204. Same budget, same everything else. The instrument is half as sharp
 as it was, and the warmup fraction is now itself a tuning question.
 
+## Design v2: the endpoint is now a decay
+
+The primary endpoint moved from a loss difference at one budget to the slope of that
+difference against log budget, measured across a ladder. Recorded in
+`deviations/2026-08-06-endpoint-changed-to-decay.md`. Consequences already applied:
+
+- budget is a treatment variable, so the v1.3 gate requiring identical `T_total` across runs
+  is gone — it would have failed every valid ladder;
+- the decay test permutes budget labels; a paired sign-flip test at three seeds bottoms out
+  at p = 0.125 and could never reject at 0.05;
+- per-condition verdicts are `TRANSIENT`, `PERSISTENT`, `DECAYING_UNRESOLVED`, `NO_EFFECT`;
+  `PERSISTENT` means survived this ladder and is always reported with the top rung;
+- "the control recovers" is finally checkable: it means the control's gap decays below the
+  margin;
+- the duration sweep is deferred, since a ladder multiplies run count by the rung count.
+
+The rehearsal gate was rerun against the new rules on fabricated ladders with planted shapes
+and returns all four study verdicts correctly. 83 tests pass.
+
+## Ladder 1: running
+
+Base 2,700, rungs 2,700 / 5,400 / 10,800. Fourteen runs per rung: 3 baseline, 3
+`fixed_early_N4`, 4 each for the two primary arms. About 18.5 hours.
+
+The registered extension rule (Section 5.2) fires if the top rung leaves either the control
+or the early arm at `DECAYING_UNRESOLVED`: one further rung at 21,600, about 21 hours more.
+The rule was written down before the ladder started, triggers on resolution alone, and
+permits at most one extension.
+
+Expectation from the pilot 3 diagnostic, recorded so it can be checked against the outcome:
+the observed decay factor was 0.58 per doubling, which would put the late-arm gap near 0.021
+at 10,800 and 0.012 at 21,600 against a margin of 0.010 to 0.020. A three-rung ladder is
+therefore more likely than not to return `DECAYING_UNRESOLVED` and trigger the extension.
+
 ## What still has to happen before the freeze
 
-1. **Decide whether the primary endpoint changes.** A final-loss difference at one budget
-   cannot separate a scar from a lag, and the diagnostic says lag dominates everywhere this
-   hardware can reach. The candidate replacement is budget-asymptotic: measure whether the
-   gap goes to zero as the budget grows, which is what "can later training repair it" asks.
-   A ladder of 5,400 / 10,800 / 21,600 for two conditions at 3 seeds costs 16 hours; adding
-   the 43,200 rung costs 34.
-2. **Reconsider the control** in light of the learnability hypothesis, or drop the control
-   requirement in favour of the ladder, where the control's role is served by the shape of
-   the decay.
-3. **Revisit the warmup fraction**, which is now trading pilot validity against seed noise.
-4. Everything previously listed remains open: choose `T`, declare the wall-clock ceiling,
-   re-measure the budget table.
+1. **Read out ladder 1**, and apply the extension rule if it fires.
+2. **Choose the registered base budget** and re-check the Section 8.1 convergence gate at
+   the top rung.
+3. **Declare the wall-clock ceiling**, which still does not exist.
+4. **Re-measure the budget table.** Every figure in it predates the schedule change.
 
 ## Known open design questions
 
-- No negative control has yet recovered, under two different definitions.
+- No negative control has yet decayed away, under two definitions — but neither has been
+  tested under an endpoint that could have detected decay.
 - The late-arm onset is fixed at `0.5T` by fiat.
 - Post-deficit learning-rate area is 51% for the late arm at both scales; in a fixed-budget
-  design "later" and "less recovery remains" may be the same fact.
+  design "later" and "less recovery remains" may be the same fact rather than a separable
+  confound. The ladder does not resolve this; it measures each arm's own decay.
 - Whether a window shuffle at the BPE-token level is a lower-level deficit than intended.
+- The warmup fraction now trades pilot validity against seed noise: shortening it from 500
+  fixed steps to 2% doubled baseline seed SD at 5,400 steps.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.

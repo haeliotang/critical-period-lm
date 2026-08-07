@@ -5,8 +5,10 @@ fabricated records whose answer is known, for every verdict it is capable of ret
 before it is allowed to see a real run. A judgment rule that has never been run against a
 known answer is not a registered rule.
 
-The synthetic losses below are written out explicitly rather than sampled, so a failure
-here is always a change in the rules and never a change in a random draw.
+The endpoint is a decay across a ladder of budgets, so the planted ground truths here are
+shapes rather than levels: a gap that stays flat as the budget grows is permanent damage, a
+gap that shrinks is unfinished recovery. Every number is written out rather than sampled, so
+a failure here is a change in the rules and never a change in a random draw.
 """
 
 import math
@@ -15,85 +17,220 @@ import unittest
 from critical_period_lm.decision_rules import (
     ALPHA,
     CRITICAL_PERIOD,
+    DECAYING_UNRESOLVED,
     DESIGN_FAILURE,
     INCONCLUSIVE,
     NO_CRITICAL_PERIOD,
-    RECOVERED,
-    SCAR,
+    NO_EFFECT,
+    PERSISTENT,
+    TRANSIENT,
     RunRecord,
-    cell_verdict,
+    decay_slope_test,
     exact_permutation_p,
+    ladder_verdict,
     minimum_detectable_effect,
+    paired_gaps,
     registered_margin,
     study_verdict,
 )
 
-TOTAL_STEPS = 60_000
+BUDGETS = (5_400, 10_800, 21_600)
+
+# Three seeds per rung. The baseline falls with budget, as it does in reality.
+BASELINE = {
+    5_400: [2.0300, 2.0360, 2.0330],
+    10_800: [1.8540, 1.8600, 1.8570],
+    21_600: [1.7000, 1.7060, 1.7030],
+}
+
+FLAT = {5_400: [0.050, 0.052, 0.048], 10_800: [0.051, 0.049, 0.050], 21_600: [0.049, 0.051, 0.050]}
+DECAYS = {5_400: [0.050, 0.052, 0.048], 10_800: [0.020, 0.021, 0.019], 21_600: [0.004, 0.005, 0.003]}
+# Small and flat. A small gap that is still visibly shrinking is TRANSIENT, not NO_EFFECT:
+# the distinction is whether a trend is detectable, not whether the gap is little.
+TINY = {5_400: [0.003, 0.005, 0.002], 10_800: [0.004, 0.002, 0.005], 21_600: [0.002, 0.005, 0.003]}
 
 
-def build_records(losses_by_condition, total_steps=TOTAL_STEPS):
-    return [
-        RunRecord(
-            condition=condition,
-            seed=index,
-            final_eval_loss=loss,
-            total_steps=total_steps,
-        )
-        for condition, losses in losses_by_condition.items()
-        for index, loss in enumerate(losses)
+def build_ladder(gaps_by_condition, baseline=BASELINE):
+    records = [
+        RunRecord("baseline", seed, loss, budget)
+        for budget, losses in baseline.items()
+        for seed, loss in enumerate(losses)
     ]
+    for condition, by_budget in gaps_by_condition.items():
+        for budget, gaps in by_budget.items():
+            for seed, gap in enumerate(gaps):
+                records.append(
+                    RunRecord(condition, seed, baseline[budget][seed] + gap, budget)
+                )
+    return records
 
 
-def grid(baseline, early, late, permute, filler=None):
-    """A full registered grid. Secondary cells default to baseline-like values."""
-    filler = filler if filler is not None else list(baseline[:3])
-    return {
-        "baseline": baseline,
-        "shuffle_early_N4": early,
-        "shuffle_late_N4": late,
-        "shuffle_early_N1": filler,
-        "shuffle_late_N1": filler,
-        "fixed_early_N1": permute,
-        "fixed_early_N4": permute,
-    }
-
-
-class PermutationTestTests(unittest.TestCase):
-    def test_complete_separation_gives_the_smallest_attainable_p(self):
-        # 4 versus 4 enumerates C(8,4) = 70 assignments, so the floor is 1/70.
-        p = exact_permutation_p([2.0, 2.1, 2.2, 2.3], [1.0, 1.1, 1.2, 1.3])
-        self.assertAlmostEqual(p, 1 / 70)
+class DecayTestTests(unittest.TestCase):
+    def test_a_clearly_shrinking_gap_gives_a_negative_slope_and_rejects(self):
+        budgets = [b for b in BUDGETS for _ in range(3)]
+        gaps = [g for b in BUDGETS for g in DECAYS[b]]
+        slope, p = decay_slope_test(budgets, gaps)
+        self.assertLess(slope, 0)
         self.assertLessEqual(p, ALPHA)
 
-        # 3 versus 3 bottoms out at 1/20 = 0.05, which is why the primary cells carry
-        # four seeds: at three the test can only ever land exactly on alpha.
-        self.assertAlmostEqual(exact_permutation_p([2.0, 2.1, 2.2], [1.0, 1.1, 1.2]), 0.05)
+    def test_a_flat_gap_does_not_reject(self):
+        budgets = [b for b in BUDGETS for _ in range(3)]
+        gaps = [g for b in BUDGETS for g in FLAT[b]]
+        slope, p = decay_slope_test(budgets, gaps)
+        self.assertGreater(p, ALPHA)
+        self.assertLess(abs(slope), 0.005)
 
-        # 2 versus 2 cannot reach alpha under any separation.
-        self.assertGreater(exact_permutation_p([9.0, 9.1], [1.0, 1.1]), ALPHA)
+    def test_a_growing_gap_gives_a_p_value_near_one(self):
+        budgets = [b for b in BUDGETS for _ in range(3)]
+        gaps = [g for b in reversed(BUDGETS) for g in DECAYS[b]]
+        slope, p = decay_slope_test(budgets, gaps)
+        self.assertGreater(slope, 0)
+        self.assertGreater(p, 0.9)
 
-    def test_reversed_separation_gives_the_largest_p(self):
-        p = exact_permutation_p([1.0, 1.1, 1.2, 1.3], [2.0, 2.1, 2.2, 2.3])
-        self.assertAlmostEqual(p, 1.0)
+    def test_three_rungs_of_three_seeds_can_reach_significance(self):
+        # 9!/(3!3!3!) = 1680 distinct budget-label assignments, so the floor is 1/1680.
+        # A paired sign-flip test at three seeds bottoms out at 1/8 and could never reject.
+        budgets = [b for b in BUDGETS for _ in range(3)]
+        gaps = [0.10, 0.10, 0.10, 0.05, 0.05, 0.05, 0.01, 0.01, 0.01]
+        _, p = decay_slope_test(budgets, gaps)
+        self.assertAlmostEqual(p, 1 / 1680, places=6)
 
-    def test_identical_groups_do_not_reject(self):
-        p = exact_permutation_p([1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0])
-        self.assertAlmostEqual(p, 1.0)
-
-    def test_p_value_is_non_increasing_in_the_shift(self):
-        # The MDE bisection assumes this. Check it rather than assume it.
-        treatment = [1.02, 0.97, 1.10, 0.99]
-        reference = [1.00, 1.01, 0.98, 1.03, 0.995]
-        previous = 1.1
-        for step in range(0, 61):
-            shift = step * 0.01
-            p = exact_permutation_p([x + shift for x in treatment], reference)
-            self.assertLessEqual(p, previous + 1e-12)
-            previous = p
-
-    def test_too_few_runs_is_an_error_not_a_p_value(self):
+    def test_one_rung_is_an_error_not_a_slope(self):
         with self.assertRaises(ValueError):
-            exact_permutation_p([1.0], [1.0, 1.1, 1.2])
+            decay_slope_test([5_400, 5_400, 5_400], [0.05, 0.04, 0.06])
+
+
+class PairingTests(unittest.TestCase):
+    def test_gaps_are_taken_against_the_same_seed_at_the_same_budget(self):
+        records = build_ladder({"shuffle_early_N4": DECAYS})
+        gaps = paired_gaps(records)
+        for budget in BUDGETS:
+            for seed, gap in gaps["shuffle_early_N4"][budget].items():
+                self.assertAlmostEqual(gap, DECAYS[budget][seed], places=9)
+
+    def test_a_deficit_run_without_its_baseline_partner_is_dropped(self):
+        records = [r for r in build_ladder({"shuffle_early_N4": DECAYS})
+                   if not (r.condition == "baseline" and r.total_steps == 21_600 and r.seed == 0)]
+        gaps = paired_gaps(records)
+        self.assertNotIn(0, gaps["shuffle_early_N4"][21_600])
+        self.assertIn(1, gaps["shuffle_early_N4"][21_600])
+
+
+class LadderVerdictTests(unittest.TestCase):
+    margin = 0.01
+
+    def _verdict(self, shape):
+        gaps = paired_gaps(build_ladder({"c": shape}))
+        return ladder_verdict("c", gaps["c"], self.margin)
+
+    def test_a_gap_that_stays_put_is_persistent(self):
+        self.assertEqual(self._verdict(FLAT).verdict, PERSISTENT)
+
+    def test_a_gap_that_decays_under_the_margin_is_transient(self):
+        self.assertEqual(self._verdict(DECAYS).verdict, TRANSIENT)
+
+    def test_a_gap_under_the_margin_throughout_is_no_effect(self):
+        self.assertEqual(self._verdict(TINY).verdict, NO_EFFECT)
+
+    def test_a_shrinking_but_still_large_gap_is_unresolved_and_extrapolated(self):
+        shape = {5_400: [0.20, 0.21, 0.19], 10_800: [0.14, 0.15, 0.13], 21_600: [0.09, 0.10, 0.08]}
+        result = self._verdict(shape)
+        self.assertEqual(result.verdict, DECAYING_UNRESOLVED)
+        self.assertGreater(result.crossing_budget, 21_600)
+        self.assertIn("reaches the margin near", result.label)
+
+
+class StudyRehearsalTests(unittest.TestCase):
+    """Every verdict the study can return, each against a planted ground truth."""
+
+    def test_persistent_early_damage_and_a_transient_late_one_is_a_critical_period(self):
+        result = study_verdict(
+            build_ladder(
+                {
+                    "shuffle_early_N4": FLAT,
+                    "shuffle_late_N4": DECAYS,
+                    "fixed_early_N4": DECAYS,
+                }
+            )
+        )
+        self.assertEqual(result.verdict, CRITICAL_PERIOD)
+        self.assertGreaterEqual(result.primary_delta, result.margin)
+        self.assertLessEqual(result.primary_p_value, ALPHA)
+
+    def test_damage_that_all_decays_away_is_no_critical_period(self):
+        result = study_verdict(
+            build_ladder(
+                {
+                    "shuffle_early_N4": DECAYS,
+                    "shuffle_late_N4": DECAYS,
+                    "fixed_early_N4": DECAYS,
+                }
+            )
+        )
+        self.assertEqual(result.verdict, NO_CRITICAL_PERIOD)
+        self.assertLessEqual(result.primary_mde, result.margin)
+        self.assertTrue(any("repaired by later training" in r for r in result.reasons))
+
+    def test_a_control_whose_damage_does_not_decay_is_a_design_failure(self):
+        result = study_verdict(
+            build_ladder(
+                {
+                    "shuffle_early_N4": FLAT,
+                    "shuffle_late_N4": DECAYS,
+                    "fixed_early_N4": FLAT,
+                }
+            )
+        )
+        self.assertEqual(result.verdict, DESIGN_FAILURE)
+        self.assertTrue(any("negative control" in r for r in result.reasons))
+
+    def test_design_failure_outranks_a_positive_primary_result(self):
+        # The control is read before the primary contrast, so a planted effect cannot
+        # rescue a design whose control did not behave.
+        big = {5_400: [0.30, 0.31, 0.29], 10_800: [0.30, 0.29, 0.31], 21_600: [0.31, 0.30, 0.29]}
+        result = study_verdict(
+            build_ladder(
+                {"shuffle_early_N4": big, "shuffle_late_N4": DECAYS, "fixed_early_N4": FLAT}
+            )
+        )
+        self.assertEqual(result.verdict, DESIGN_FAILURE)
+
+    def test_a_noisy_top_rung_is_inconclusive_not_a_null(self):
+        noisy_early = {5_400: [0.06, 0.02, 0.09], 10_800: [0.05, 0.03, 0.08], 21_600: [0.05, 0.01, 0.08]}
+        noisy_late = {5_400: [0.03, 0.07, 0.04], 10_800: [0.02, 0.06, 0.03], 21_600: [0.02, 0.06, 0.03]}
+        result = study_verdict(
+            build_ladder(
+                {
+                    "shuffle_early_N4": noisy_early,
+                    "shuffle_late_N4": noisy_late,
+                    "fixed_early_N4": DECAYS,
+                }
+            )
+        )
+        self.assertEqual(result.verdict, INCONCLUSIVE)
+        self.assertGreater(result.primary_mde, result.margin)
+
+
+class MechanicalGateTests(unittest.TestCase):
+    def test_a_single_budget_is_a_design_failure(self):
+        records = [r for r in build_ladder({"shuffle_early_N4": DECAYS}) if r.total_steps == 5_400]
+        result = study_verdict(records)
+        self.assertEqual(result.verdict, DESIGN_FAILURE)
+        self.assertTrue(any("two budget rungs" in r for r in result.reasons))
+
+    def test_a_diverged_run_is_a_design_failure(self):
+        records = build_ladder({"shuffle_early_N4": DECAYS, "fixed_early_N4": DECAYS})
+        records[0] = RunRecord("baseline", 0, math.nan, 5_400)
+        result = study_verdict(records)
+        self.assertEqual(result.verdict, DESIGN_FAILURE)
+        self.assertTrue(any("non-finite" in r for r in result.reasons))
+
+    def test_a_missing_negative_control_is_a_design_failure(self):
+        result = study_verdict(
+            build_ladder({"shuffle_early_N4": FLAT, "shuffle_late_N4": DECAYS})
+        )
+        self.assertEqual(result.verdict, DESIGN_FAILURE)
+        self.assertTrue(any("no negative control" in r for r in result.reasons))
 
 
 class MarginAndPowerTests(unittest.TestCase):
@@ -101,186 +238,19 @@ class MarginAndPowerTests(unittest.TestCase):
         self.assertAlmostEqual(registered_margin([1.0, 1.0001, 0.9999, 1.0, 1.0]), 0.01)
 
     def test_margin_uses_three_baseline_sd_when_variance_is_large(self):
-        baseline = [0.90, 1.10, 0.95, 1.05, 1.00]
-        self.assertGreater(registered_margin(baseline), 0.01)
+        self.assertGreater(registered_margin([0.90, 1.10, 0.95, 1.05, 1.00]), 0.01)
 
-    def test_mde_is_never_below_the_margin(self):
-        mde = minimum_detectable_effect(
-            [2.0, 2.1, 2.2, 2.3], [1.0, 1.1, 1.2, 1.3], margin=0.5
-        )
-        self.assertGreaterEqual(mde, 0.5)
-
-    def test_a_rejecting_cell_could_have_detected_less_than_it_saw(self):
-        # A large, cleanly separated effect must not report its own size as its
-        # resolution; the shift that defines the MDE is allowed to be negative.
-        treatment = [2.0, 2.01, 2.02, 2.03]
-        reference = [1.0, 1.01, 1.02, 1.03]
-        mde = minimum_detectable_effect(treatment, reference, margin=0.01)
-        self.assertLess(mde, 1.0)
-        self.assertGreaterEqual(mde, 0.01)
+    def test_complete_separation_gives_the_smallest_attainable_p(self):
+        self.assertAlmostEqual(exact_permutation_p([2.0, 2.1, 2.2, 2.3], [1.0, 1.1, 1.2, 1.3]), 1 / 70)
+        self.assertAlmostEqual(exact_permutation_p([2.0, 2.1, 2.2], [1.0, 1.1, 1.2]), 0.05)
 
     def test_an_underpowered_comparison_reports_infinite_resolution(self):
-        self.assertEqual(
-            minimum_detectable_effect([2.0, 2.1], [1.0, 1.1], margin=0.01), math.inf
-        )
+        self.assertEqual(minimum_detectable_effect([2.0, 2.1], [1.0, 1.1], margin=0.01), math.inf)
 
-
-class CellVerdictTests(unittest.TestCase):
-    baseline = [1.000, 1.004, 0.998, 1.002, 1.001]
-
-    def test_large_separated_difference_is_a_scar(self):
-        margin = registered_margin(self.baseline)
-        result = cell_verdict("shuffle_early_N4", [1.20, 1.21, 1.19, 1.205], self.baseline, margin)
-        self.assertEqual(result.verdict, SCAR)
-        self.assertFalse(result.underpowered)
-
-    def test_difference_below_the_margin_is_recovered(self):
-        margin = registered_margin(self.baseline)
-        result = cell_verdict("fixed_early_N4", [1.001, 1.003, 0.999], self.baseline, margin)
-        self.assertEqual(result.verdict, RECOVERED)
-
-    def test_large_but_unseparated_difference_is_inconclusive(self):
-        # A big point estimate carried by one wild seed is not a scar.
-        margin = registered_margin(self.baseline)
-        result = cell_verdict("shuffle_early_N4", [1.10, 0.95, 1.25], self.baseline, margin)
-        self.assertGreaterEqual(result.delta, margin)
-        self.assertGreater(result.p_value, ALPHA)
-        self.assertEqual(result.verdict, INCONCLUSIVE)
-
-    def test_a_blunt_recovered_cell_is_labeled_a_calibrated_null(self):
-        # No difference, but seed spread within the cell is five times the margin, so
-        # this cell could not have seen the effect it is reporting the absence of.
-        margin = registered_margin(self.baseline)
-        result = cell_verdict("fixed_early_N4", [0.95, 1.05, 1.00], self.baseline, margin)
-        self.assertEqual(result.verdict, RECOVERED)
-        self.assertGreater(result.mde, margin)
-        self.assertTrue(result.underpowered)
-        self.assertEqual(result.label, "calibrated null (underpowered)")
-
-
-class StudyRehearsalTests(unittest.TestCase):
-    """The four verdicts the study can return, each against a planted ground truth."""
-
-    def test_planted_onset_effect_returns_critical_period(self):
-        result = study_verdict(
-            build_records(
-                grid(
-                    baseline=[1.000, 1.004, 0.998, 1.002, 1.001],
-                    early=[1.200, 1.210, 1.190, 1.205],
-                    late=[1.050, 1.060, 1.040, 1.055],
-                    permute=[1.001, 1.003, 0.999],
-                )
-            )
-        )
-        self.assertEqual(result.verdict, CRITICAL_PERIOD)
-        self.assertGreater(result.primary_delta, result.margin)
-        self.assertLessEqual(result.primary_p_value, ALPHA)
-
-    def test_planted_null_with_adequate_resolution_returns_no_critical_period(self):
-        result = study_verdict(
-            build_records(
-                grid(
-                    baseline=[1.0000, 1.0020, 0.9990, 1.0010, 1.0005],
-                    early=[1.0005, 1.0015, 0.9995, 1.0010],
-                    late=[1.0000, 1.0020, 0.9990, 1.0012],
-                    permute=[1.0000, 1.0010, 0.9995],
-                )
-            )
-        )
-        self.assertEqual(result.verdict, NO_CRITICAL_PERIOD)
-        self.assertLessEqual(result.primary_mde, result.margin)
-
-    def test_planted_null_without_resolution_returns_inconclusive(self):
-        # Same absence of an onset effect, but seed spread inside the deficit cells is an
-        # order of magnitude above the margin, so the study could not have seen the effect
-        # it is looking for. This must not be reported as a null.
-        result = study_verdict(
-            build_records(
-                grid(
-                    baseline=[1.000, 1.004, 0.998, 1.002, 1.001],
-                    early=[1.10, 0.95, 1.25, 1.00],
-                    late=[1.00, 1.20, 0.90, 1.10],
-                    permute=[1.001, 1.003, 0.999],
-                )
-            )
-        )
-        self.assertEqual(result.verdict, INCONCLUSIVE)
-        self.assertGreater(result.primary_mde, result.margin)
-
-    def test_scarred_negative_control_returns_design_failure(self):
-        # A vocabulary permutation that does not recover means the deficit pair does not
-        # isolate what it claims to isolate. No critical-period claim survives this.
-        losses = grid(
-            baseline=[1.000, 1.004, 0.998, 1.002, 1.001],
-            early=[1.200, 1.210, 1.190, 1.205],
-            late=[1.050, 1.060, 1.040, 1.055],
-            permute=[1.300, 1.310, 1.290],
-        )
-        result = study_verdict(build_records(losses))
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
-        self.assertTrue(any("negative control" in reason for reason in result.reasons))
-
-    def test_design_failure_outranks_a_positive_primary_result(self):
-        # The control is checked before the primary contrast is read, so a planted effect
-        # cannot rescue a broken design.
-        losses = grid(
-            baseline=[1.000, 1.004, 0.998, 1.002, 1.001],
-            early=[1.500, 1.510, 1.490, 1.505],
-            late=[1.050, 1.060, 1.040, 1.055],
-            permute=[1.300, 1.310, 1.290],
-        )
-        self.assertEqual(study_verdict(build_records(losses)).verdict, DESIGN_FAILURE)
-
-
-class MechanicalGateTests(unittest.TestCase):
-    good = grid(
-        baseline=[1.000, 1.004, 0.998, 1.002, 1.001],
-        early=[1.200, 1.210, 1.190, 1.205],
-        late=[1.050, 1.060, 1.040, 1.055],
-        permute=[1.001, 1.003, 0.999],
-    )
-
-    def test_unequal_total_steps_is_a_design_failure(self):
-        records = build_records(self.good)
-        mismatched = [
-            RunRecord(r.condition, r.seed, r.final_eval_loss, r.total_steps + 1)
-            if r.condition == "shuffle_late_N4"
-            else r
-            for r in records
-        ]
-        result = study_verdict(mismatched)
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
-        self.assertTrue(any("total_steps" in reason for reason in result.reasons))
-
-    def test_a_diverged_run_is_a_design_failure(self):
-        records = build_records(self.good)
-        records[0] = RunRecord("baseline", 0, math.nan, TOTAL_STEPS)
-        result = study_verdict(records)
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
-        self.assertTrue(any("non-finite" in reason for reason in result.reasons))
-
-    def test_a_missing_primary_condition_is_a_design_failure(self):
-        losses = dict(self.good)
-        del losses["shuffle_late_N4"]
-        result = study_verdict(build_records(losses))
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
-
-    def test_an_unresolvable_instrument_is_a_design_failure_not_a_null(self):
-        # Baseline barely moved off random initialization, so the margin is a large
-        # fraction of everything the model ever learned.
-        result = study_verdict(
-            build_records(
-                grid(
-                    baseline=[0.90, 1.10, 0.95, 1.05, 1.00],
-                    early=[1.00, 1.02, 0.98, 1.01],
-                    late=[1.00, 1.01, 0.99, 1.02],
-                    permute=[1.00, 1.01, 0.99],
-                )
-            ),
-            random_baseline_loss=1.50,
-        )
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
-        self.assertTrue(any("resolve" in reason for reason in result.reasons))
+    def test_a_rejecting_comparison_could_have_detected_less_than_it_saw(self):
+        mde = minimum_detectable_effect([2.0, 2.01, 2.02, 2.03], [1.0, 1.01, 1.02, 1.03], 0.01)
+        self.assertLess(mde, 1.0)
+        self.assertGreaterEqual(mde, 0.01)
 
 
 if __name__ == "__main__":

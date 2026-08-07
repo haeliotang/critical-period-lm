@@ -1,6 +1,6 @@
 # Preregistration: Critical Learning Periods in Small Language Models
 
-**Design version:** `v1.3-draft` (not frozen)
+**Design version:** `v2-draft` (not frozen)
 **Status:** pre-calibration, pre-freeze. No training run may be registered against this
 document until the calibration gate in Section 8.1 closes and the freeze tag exists.
 
@@ -8,10 +8,12 @@ document until the calibration gate in Section 8.1 closes and the freeze tag exi
 
 ## 1. Scope and decision boundary
 
-This study asks one question: **does a training-data deficit applied during an early
-window of language-model pretraining cause damage that a large clean-training budget
-cannot repair, and is that damage specific to *when* the deficit occurred rather than to
-*how much* deficit there was?**
+This study asks one question: **does the damage from a training-data deficit go to zero as
+the training budget grows, and does that depend on when the deficit occurred?**
+
+"Cannot be repaired by later training" is the claim a critical period makes, so the study
+measures repair directly: the same conditions are run at a ladder of budgets and the
+registered quantity is whether the gap to a clean baseline shrinks as the budget grows.
 
 The phenomenon is established in vision. Achille, Rovere and Soatto showed that a deficit
 (image blur) applied during an early window of CNN training permanently reduces final
@@ -71,28 +73,50 @@ Exact bibliographic identifiers were checked against the arXiv and venue records
 
 ### 3.1 Registered question
 
-Under a fixed total training budget with a fixed clean-recovery allowance, does a
-window-shuffle deficit applied to the **first** `N` steps of pretraining leave a larger
-permanent penalty in held-out loss than the **same deficit, of the same duration, applied
-to a later window**?
+**Does the damage from a training-data deficit go to zero as the training budget grows, and
+does that depend on when the deficit occurred?**
+
+Each condition is trained at a ladder of budgets. The quantity of interest is the gap to a
+seed-matched clean baseline at each budget, and the registered question is about the shape
+of that gap as a function of budget, not its value at any one budget.
 
 ### 3.2 Directional registered comparison
 
-Registered direction: `final_loss(shuffle_early) > final_loss(shuffle_late)`.
+Registered direction: at the top rung of the ladder,
+`gap(shuffle_early) > gap(shuffle_late)`, with the early arm's gap persisting rather than
+decaying away.
 
-The opposite result, or no difference, is a registered outcome of this study and will be
-reported as such. This design has no result that counts as a failed experiment; it has
-results that count as a failed *design*, and those are enumerated in Section 7.3.
+The opposite result, or no difference, is a registered outcome and will be reported as
+such. This design has no result that counts as a failed experiment; it has results that
+count as a failed *design*, and those are enumerated in Section 7.3.
 
-### 3.3 Why onset, not dose, is the primary contrast
+### 3.3 Why the endpoint is a decay and not a level
 
-A deficit applied to the first `N` steps also consumes `N` steps of training budget. A
-design that varies only `N` — deficit from step 0, sweeping duration — cannot separate
-"early damage is special" from "more corrupted data is worse" or from "less effective
-training happened". The early-versus-late contrast holds deficit type, deficit duration,
-total step count, and total token count fixed, and varies only the onset. That contrast is
-the definition of a critical period, so it is the primary endpoint. The duration sweep is
+Design versions up to v1.3 scored damage as the loss difference at the end of a single
+training budget. The Section 8.2 diagnostic showed that this cannot work here. At 5,400
+steps the late-arm gap was 0.0370; at 10,800 it was 0.0213 — a fall of 42% on one doubling.
+
+A difference that shrinks when you train longer is unrepaired damage, not permanent damage.
+Worse, the fix that made runs converge — annealing the learning rate to zero — guarantees
+that *every* condition stops moving at the end of its budget, including one that had not
+finished recovering. Convergence under that schedule freezes the deficit in place rather
+than resolving it, so a single-budget endpoint reports "permanent" for a state whose only
+distinguishing feature is where the run happened to stop.
+
+Three pilots at a single budget produced `DESIGN_FAILURE` each time, with every condition
+including the negative control scoring as scarred. Under a decay endpoint that pattern has
+an obvious reading: at those budgets nothing had finished recovering, so nothing could
+recover. The endpoint was measuring the budget, not the deficit.
+
+### 3.4 Why onset, not dose, is the primary contrast
+
+A deficit applied to the first `N` steps also consumes `N` steps of budget. A design that
+varies only `N` cannot separate "early damage is special" from "more corrupted data is
+worse" or from "less effective training happened". The early-versus-late contrast holds
+deficit type, duration, total steps and total tokens fixed and varies only onset. That is
+the definition of a critical period, so it is the primary contrast. The duration sweep is
 retained as a secondary, descriptive arm.
+
 
 ## 4. Design
 
@@ -170,28 +194,32 @@ Deficit F is load-bearing in two distinct ways, and both must be stated:
 If Deficit F scars, the design has failed and no critical-period claim may be made from
 this study. See Section 7.3.
 
-### 4.3 Registered condition grid
+### 4.3 Registered ladder
 
-Let `T` be the frozen clean-training budget in optimizer steps, fixed at calibration.
-Deficit durations are expressed as fractions of `T`: `N ∈ {0.02, 0.04, 0.08, 0.16} · T`,
-denoted `N1 < N2 < N3 < N4`.
+Let `B` be the base budget in optimizer steps, fixed at calibration. Every condition is run
+at `B`, `2B` and `4B`. Within each rung a run is `T_total` steps long and the deficit
+geometry of Section 4.4 is applied to that rung's own budget, so a rung is a complete study
+in miniature rather than a truncation of the rung above.
 
-| Condition | Deficit | Window | Seeds |
+| Condition | Deficit | Window | Seeds per rung |
 | --- | --- | --- | --- |
-| `baseline` | none | — | 5 |
+| `baseline` | none | — | 3 |
 | `shuffle_early_N4` | S | `[0, N4)` | 4 |
 | `shuffle_late_N4` | S | `[0.5T, 0.5T + N4)` | 4 |
-| `shuffle_early_{N1..N3}` | S | `[0, N)` | 3 each |
-| `shuffle_late_{N1..N3}` | S | `[0.5T, 0.5T + N)` | 3 each |
-| `fixed_early_{N1..N4}` | F | `[0, N)` | 3 each |
+| `fixed_early_N4` | F | `[0, N4)` | 3 |
 
-The two `N4` cells carry four seeds because they form the primary contrast, and an exact
-permutation test on 4 versus 4 can reach `p = 1/70 ≈ 0.014` while 3 versus 3 bottoms out
-at `p = 0.05`. Seeds are drawn from a registered list, in order, never selected.
+The two `N4` arms carry four seeds because they form the primary contrast, where an exact
+permutation test on 4 versus 4 reaches `p = 1/70 ≈ 0.014` while 3 versus 3 bottoms out at
+0.05. The decay test does not need four: it permutes budget labels over all rungs at once,
+so three rungs of three seeds already enumerate 1,680 assignments.
 
-Out of scope for this study, and not to be added later without an amendment: a late-onset
-arm for Deficit F, an onset sweep at finer resolution, deficits applied to evaluation
-data, model-scale sweeps, and any architecture variation.
+The duration sweep (`N1` through `N3`) is deferred. Under a ladder endpoint it multiplies
+the run count by the number of rungs, and it is descriptive rather than load-bearing. Adding
+it later requires an amendment, not a decision made while results are visible.
+
+Out of scope and not to be added without an amendment: a late-onset arm for Deficit F, a
+finer onset sweep, deficits applied to evaluation data, model-scale sweeps, and any
+architecture variation.
 
 ### 4.4 Recovery protocol
 
@@ -234,75 +262,124 @@ evidence against a critical period.
 
 ## 5. Outcomes
 
-### 5.1 Primary endpoint
+### 5.1 Measured quantity
 
-Mean held-out cross-entropy in nats per token on the frozen validation split, evaluated at
-the final step `T_total`, under the frozen evaluation procedure (fixed batch order, fixed
-context length, no sampling, no temperature).
+Held-out cross-entropy in nats per token on the frozen validation split, at the final step
+of each run, under the frozen evaluation procedure (fixed batch order, fixed context length,
+no sampling).
 
-Primary statistic: `Δ_primary = mean(shuffle_early_N4) − mean(shuffle_late_N4)`.
+From these, the **gap**: `g(condition, budget, seed) = loss(condition, budget, seed) −
+loss(baseline, budget, seed)`, paired within budget and seed. A seed fixes both the
+initialization and the data order, so pairing removes a variance component that an unpaired
+comparison would carry. A deficit run with no baseline partner at the same budget and seed
+contributes no gap and is reported as dropped.
 
-Primary test: exact one-sided permutation test over all 70 label assignments of the 8
-runs, `α = 0.05`. This is a single registered test; no correction is applied to it and no
-other test may be substituted for it.
+### 5.2 Budget ladder
 
-### 5.2 Scar margin
+Every condition is run at each rung of a ladder of budgets in which each rung is double the
+one below. The rungs and the seed counts are fixed at calibration and frozen. At least three
+rungs are required: two can show that a gap changed, but not that it is decaying toward
+something.
 
-A difference must clear both a statistical and a magnitude bar.
+**Extension rule, registered in advance.** If the top rung leaves either `fixed_early_N4` or
+`shuffle_early_N4` at `DECAYING_UNRESOLVED` — shrinking but not yet under the margin — one
+further rung at `8B` is added, and the ladder is re-analysed with all four rungs.
+
+Three properties make this a sequential rule rather than a licence to keep going until an
+answer appears:
+
+- it fires on `DECAYING_UNRESOLVED` alone, which is a statement about resolution, and is
+  blind to the direction or size of every other result;
+- at most one extension is permitted; a second `DECAYING_UNRESOLVED` is reported as the
+  study's answer, with the crossing budget as an extrapolation;
+- the trigger is evaluated by the frozen decision code, not by reading a plot.
+
+Its purpose is to buy a decision point partway through, not to buy a better result. A ladder
+that stops while its gaps are still visibly falling has measured a decay rate and not an
+asymptote, and reporting that honestly is the alternative this rule is weighed against.
+
+### 5.3 Margin
 
 `margin = max(3 · SD_baseline, 0.01)` nats per token, where `SD_baseline` is the sample
-standard deviation of final loss across the 5 baseline seeds. The absolute floor exists
-because a pathologically small seed variance would otherwise let a scientifically empty
-difference pass.
+standard deviation of baseline final loss **at the top rung**. Computed once, from baseline
+seeds only, never pooled with deficit cells. The absolute floor exists because a
+pathologically tight baseline would otherwise let a scientifically empty difference pass.
 
-`SD_baseline` is computed from the baseline seeds only, and it is computed once. It is not
-recomputed per cell and not pooled with deficit cells.
+### 5.4 Decay test
 
-### 5.3 Per-cell verdicts
+For each condition, the registered statistic is the slope of its gap against `log2(budget)`,
+across every seed and rung. The null is that budget is unrelated to gap, so **budget labels
+are exchangeable over the observed gaps**, and the p-value is the exact proportion of label
+assignments whose slope is at least as negative as the observed one. One-sided, `α = 0.05`.
 
-For each deficit cell, against the baseline: `SCAR`, `RECOVERED`, or `INCONCLUSIVE`,
-assigned by the frozen rules in `src/critical_period_lm/decision_rules.py`. Prose in the
-write-up may not assign a verdict that the frozen code did not return.
+A paired sign-flip test was considered and rejected: at three seeds it enumerates `2^3 = 8`
+assignments, so its smallest attainable p-value is 0.125 and it could never reject. The
+budget-label permutation over three rungs of three seeds enumerates `9!/(3!)^3 = 1680`
+assignments and reaches `1/1680`.
 
-`RECOVERED` means *failure to detect a scar at this power*, not *proof of no scar*. Every
-`RECOVERED` cell is reported together with its minimum detectable effect, and a cell whose
-minimum detectable effect exceeds the margin is labeled **calibrated null (underpowered)**
-rather than being reported as a clean negative.
+### 5.5 Per-condition ladder verdicts
 
-### 5.4 Study-level verdict
+Assigned by the frozen rules in `src/critical_period_lm/decision_rules.py`. Prose may not
+assign a verdict the frozen code did not return.
+
+- **`TRANSIENT`** — the gap decays and is below the margin at the top rung. Later training
+  repaired the damage.
+- **`PERSISTENT`** — no detectable decay and the gap is above the margin at the top rung.
+  The damage survived every budget increase this ladder applied.
+- **`DECAYING_UNRESOLVED`** — decaying but still above the margin. Reported together with
+  the budget at which the fitted line would cross the margin, explicitly labelled as an
+  extrapolation.
+- **`NO_EFFECT`** — below the margin throughout, with no detectable trend.
+
+`PERSISTENT` means *survived this ladder*, never *permanent*. The strongest available
+statement is bounded by the top rung, and the top rung is stated with the verdict.
+
+### 5.6 Primary contrast
+
+`Δ_primary = mean g(shuffle_early, top) − mean g(shuffle_late, top)`, tested by exact
+one-sided permutation of condition labels at `α = 0.05`. One registered test; no correction
+is applied to it and no other test may be substituted.
+
+### 5.7 Study-level verdict
 
 `CRITICAL_PERIOD` requires all of:
 
-1. every `fixed_early` cell returns `RECOVERED` (Section 7.3 otherwise);
-2. `shuffle_early_N4` returns `SCAR`;
-3. the primary permutation test rejects at `α = 0.05` in the registered direction;
+1. every `fixed_early` control returns `TRANSIENT` or `NO_EFFECT` (Section 7.3 otherwise);
+2. `shuffle_early` returns `PERSISTENT` or `DECAYING_UNRESOLVED`;
+3. the primary test rejects at `α = 0.05` in the registered direction;
 4. `Δ_primary ≥ margin`.
 
 `NO_CRITICAL_PERIOD` requires that the primary test does not reject and that its minimum
-detectable effect is at or below the margin — that is, that the study had the resolution to
-have seen the effect.
+detectable effect is at or below the margin — that the study had the resolution to have seen
+the effect. Where `shuffle_early` also returns `TRANSIENT` or `NO_EFFECT`, that is reported
+alongside: early damage was repaired by later training rather than persisting.
 
-Otherwise: `INCONCLUSIVE`. If the negative control fails: `DESIGN_FAILURE`.
+Otherwise `INCONCLUSIVE`. If a control does not decay away: `DESIGN_FAILURE`.
 
-### 5.5 Secondary measures
+### 5.8 Secondary measures
 
-Descriptive only. No secondary measure can promote, demote, or qualify a primary verdict.
+Descriptive only. No secondary measure can promote, demote or qualify a primary verdict.
 
-- Δ against baseline for every cell, with the duration trend across `N1..N4`.
-- Layerwise CKA between each deficit run and a seed-matched baseline run at final step.
-- Full training and validation loss curves, retained for every run.
-- Wall-clock and token counts per run.
+- Gap and ladder verdict for every condition, including the duration sweep.
+- Fitted decay slope and, where applicable, the extrapolated crossing budget.
+- Layerwise CKA between each deficit run and its seed-matched baseline at the top rung.
+- Full loss curves, wall-clock and token counts for every run.
+
 
 ## 6. Registered controls
 
-**Negative control.** `fixed_early_{N1..N4}` must recover. This is the design's own
-falsification test, and it is checked before any primary result is read.
+**Negative control.** `fixed_early_N4` must return `TRANSIENT` or `NO_EFFECT` — its damage
+must decay away as the budget grows. This is the design's own falsification test and it is
+checked before any primary result is read. Under a ladder endpoint "the control recovers"
+is finally a checkable statement rather than a hope: it means the gap goes to zero with
+budget, which is exactly what the ladder measures.
 
 **Null band.** The 5 baseline seeds supply the null distribution. Seed variance, not an
 assumed noise model, defines what counts as a difference.
 
-**Compute matching.** Enforced by construction: identical `T_total` for every run,
-verified mechanically from the run records rather than asserted.
+**Compute matching.** Within a rung, every condition trains for the same `T_total`, and the
+gap is paired against the baseline at that same rung and seed. Across rungs, budget is the
+treatment and is deliberately not matched.
 
 **Evaluation integrity.** The validation split is never subjected to a deficit and is
 never used for any selection decision. It is split off before any training begins and its
@@ -334,19 +411,28 @@ A judgment rule that has never been run against a known answer is not a register
 Each of these terminates the critical-period claim and is reported as a design failure,
 not as a negative result:
 
-- any `fixed_early` cell returns `SCAR`;
-- baseline seed variance is large enough that `margin` exceeds the total baseline-to-random
-  loss range by more than 10%, i.e. the instrument cannot resolve anything;
+- any `fixed_early` ladder returns `PERSISTENT` or `UNDETERMINED`, that is, its damage
+  does not decay away;
+- baseline seed variance at the top rung is large enough that the margin exceeds the change
+  in baseline loss across the ladder, i.e. the instrument cannot resolve anything the extra
+  budget did;
 - any run diverges, produces non-finite loss, or terminates early, and the condition
   cannot be completed at the registered seed;
-- recorded `T_total` is not identical across completed runs.
+- fewer than two budget rungs completed, or fewer than two baseline seeds at the top rung;
+- a deficit run has no baseline partner at its own budget and seed, so no gap exists for it.
+
+Note that unequal `T_total` across runs is **not** a failure condition under this design.
+Budget is the treatment variable of the ladder. Design versions up to v1.3 checked total
+steps for equality across the grid, which under a ladder endpoint would fail every valid
+study.
 
 ### 7.4 Budget gate
 
-If the calibrated full grid exceeds the declared wall-clock ceiling, it is reduced before
-freeze, in this fixed priority order: drop `N2`, then `N3`, then the `fixed_early` cells
-at `N1` and `N2`. Never reduced: the two `N4` primary cells below 4 seeds, the baseline
-below 5 seeds, the `fixed_early_N4` cell, and the recovery multiplier `R`.
+If the calibrated ladder exceeds the declared wall-clock ceiling, it is reduced before
+freeze, in this fixed priority order: drop the top rung `4B` (leaving two rungs and a
+weaker decay test), then reduce the primary arms from 4 seeds to 3. Never reduced: the
+number of rungs below two, the baseline below 3 seeds per rung, the `fixed_early_N4`
+condition, and the recovery multiplier `R`.
 
 ## 8. Calibration, before freeze
 
@@ -373,23 +459,17 @@ Calibration runs are exploratory. They are labeled as such, they are excluded fr
 analysis, and they are stored outside `runs/`. Nothing measured during calibration may be
 used to choose the primary endpoint, the margin, the direction, or `R`.
 
-### 8.2 Budget-doubling diagnostic, required before the freeze
+### 8.2 The budget-doubling diagnostic has become the endpoint
 
-Annealing to zero buys convergence by forcing it: when the learning rate reaches zero every
-condition stops moving, including one that had not finished recovering. Convergence under
-this schedule therefore cannot by itself distinguish a scar from a deficit frozen in place
-before it could be repaired.
+This section previously registered a doubling diagnostic to be reported alongside a
+single-budget verdict. Its first use showed that the diagnostic, not the verdict, was
+carrying the information: the gap it was checking fell by 42% on one doubling, which meant
+the single-budget endpoint had been scoring unfinished recovery as permanent damage.
 
-The discriminator is budget dependence. Run the baseline and one deficit arm at `T_total`
-and again at `2·T_total`, and compare the asymptotic gap:
-
-- gap materially smaller at the doubled budget — the difference is a lag, and "permanent"
-  is an artefact of where the schedule was cut off;
-- gap unchanged — the difference survives a doubling of the recovery it was given, which is
-  the strongest statement this design can make about permanence.
-
-The comparison is descriptive and is reported alongside the primary verdict. It is required
-because without it "permanent" means only "still there when the learning rate hit zero".
+The diagnostic is therefore no longer a side check. It is Section 5, and the ladder is the
+design. What remains here is the calibration obligation it implies: the base budget `B` must
+be chosen so that the top rung `4B` is reachable within the declared wall-clock ceiling,
+because a ladder that cannot afford its top rung cannot answer the question.
 
 ### 8.3 What calibration may not touch
 

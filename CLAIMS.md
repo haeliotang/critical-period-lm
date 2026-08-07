@@ -6,11 +6,12 @@ are not authorized, regardless of how the results look.
 ## Claim C0: the protocol transfers
 
 **Statement.** The deficit-window protocol established for vision networks can be
-instantiated for autoregressive language-model pretraining with a statistics-preserving
-negative control, a compute-matched comparison, and a preregistered recovery budget.
+instantiated for autoregressive language-model pretraining with an information-preserving
+negative control, a seed-paired baseline, and an endpoint that separates unrepaired damage
+from permanent damage.
 
-**Evidence required.** A completed grid in which every run shares one configuration and an
-identical total step count, the negative control recovers, and the frozen decision code
+**Evidence required.** A completed ladder in which every run shares one configuration apart
+from its budget, the negative control's damage decays away, and the frozen decision code
 returns a verdict without manual intervention.
 
 **Maximum scope.** Methodological. The protocol is instantiable and its controls behave.
@@ -20,9 +21,10 @@ instrument, not the finding.
 
 ## Claim C1: onset-dependent permanent damage, or its absence
 
-**Statement.** At this model scale, corpus, and budget, a window-shuffle deficit of fixed
-duration applied early in pretraining leaves a larger permanent held-out-loss penalty than
-the same deficit applied later — or it does not, at a stated resolution.
+**Statement.** At this model scale and corpus, the gap left by a window-shuffle deficit
+applied early in pretraining survives increases in the training budget, and survives them
+more than the same deficit applied later — or it does not, at a stated resolution and up to
+a stated top budget.
 
 **Evidence required.** The full Section 5.4 conjunction of `preregistration.md`, including
 a recovered negative control and a rejected primary permutation test in the registered
@@ -48,8 +50,8 @@ absent effect under one schedule does not rule one out under another.
 information only because Deficit F — the same operation on the same tokens, differing only
 in that its permutation is fixed and therefore invertible — does not scar.
 
-**Evidence required.** Every registered `fixed_early` cell returns `RECOVERED`, with its
-minimum detectable effect reported.
+**Evidence required.** The registered `fixed_early` ladder returns `TRANSIENT` or
+`NO_EFFECT` — its gap decays to below the margin as the budget grows.
 
 **Maximum scope.** Rules out the compute-loss explanation and the
 any-early-perturbation-scars explanation, for these two deficits.
@@ -68,7 +70,9 @@ smaller than the reported minimum detectable effect at this scale and budget.
 an explicit `calibrated null (underpowered)` label wherever that quantity exceeds the
 registered margin.
 
-**Maximum scope.** An upper bound on effect size under these conditions.
+**Maximum scope.** An upper bound on effect size under these conditions, at budgets up to
+the top rung. `PERSISTENT` means survived this ladder; it never means permanent, and every
+report of it carries the top budget it survived.
 
 **Forbidden extension.** "Language models have no critical periods." Absence of evidence at
 n=4 per cell is a resolution statement, not an existence statement.
@@ -93,7 +97,8 @@ This study cannot establish:
   deficit pair under one recovery budget;
 - that the representational (CKA) measures identify a mechanism; they are descriptive;
 - that the TinyStories corpus is representative of natural language;
-- that MLX, this hardware, or this implementation is free of common-mode error.
+- that MLX, this hardware, or this implementation is free of common-mode error;
+- that a gap surviving the top rung would survive a budget an order of magnitude larger.
 
 ## Provenance note
 

@@ -9,9 +9,9 @@ REQUIRED_FILES := \
 
 TRAIN_MB ?= 600
 CALIBRATION_STEPS ?= 8000
-PILOT_STEPS ?= 5400
+LADDER_BASE ?= 5400
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate pilot report report-calibration
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder report report-calibration
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -54,26 +54,28 @@ calibrate:
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
 		--calibration --condition calibration --total-steps $(CALIBRATION_STEPS)
 
-# A scaled-down rehearsal of the primary contrast, at PILOT_STEPS instead of the full
-# budget. Answers four questions at once: baseline seed variance (which sets the margin and
-# therefore all of the study's power), whether Deficit S hurts, whether Deficit P recovers,
-# and whether the analysis path works on real records rather than synthetic ones.
-# Exploratory throughout: written to calibration/, excluded from every registered analysis.
-pilot:
-	@for s in 0 1 2 3 4; do \
-		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
-			--condition baseline --seed $$s --total-steps $(PILOT_STEPS) || exit 1; \
-	done
-	@for s in 0 1 2; do \
-		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
-			--condition shuffle_early_N4 --seed $$s --deficit shuffle \
-			--onset-frac 0.0 --duration-frac 0.16 --total-steps $(PILOT_STEPS) || exit 1; \
-		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
-			--condition shuffle_late_N4 --seed $$s --deficit shuffle \
-			--onset-frac 0.5 --duration-frac 0.16 --total-steps $(PILOT_STEPS) || exit 1; \
-		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
-			--condition fixed_early_N4 --seed $$s --deficit fixed \
-			--onset-frac 0.0 --duration-frac 0.16 --total-steps $(PILOT_STEPS) || exit 1; \
+# The registered ladder: every condition at BASE, 2*BASE and 4*BASE. The endpoint is
+# whether each condition's gap to baseline decays as the budget grows, so budget is the
+# treatment and the rungs are not interchangeable with more seeds at one budget.
+# Exploratory until the design is frozen: written to calibration/, excluded from results.
+ladder:
+	@for mult in 1 2 4; do \
+		budget=$$(( $(LADDER_BASE) * $$mult )); \
+		for s in 0 1 2; do \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
+				--condition baseline --seed $$s --total-steps $$budget || exit 1; \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
+				--condition fixed_early_N4 --seed $$s --deficit fixed \
+				--onset-frac 0.0 --duration-frac 0.16 --total-steps $$budget || exit 1; \
+		done; \
+		for s in 0 1 2 3; do \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
+				--condition shuffle_early_N4 --seed $$s --deficit shuffle \
+				--onset-frac 0.0 --duration-frac 0.16 --total-steps $$budget || exit 1; \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
+				--condition shuffle_late_N4 --seed $$s --deficit shuffle \
+				--onset-frac 0.5 --duration-frac 0.16 --total-steps $$budget || exit 1; \
+		done; \
 	done
 	$(MAKE) report-calibration
 
