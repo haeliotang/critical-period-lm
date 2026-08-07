@@ -33,7 +33,7 @@ MARGIN_FLOOR_NATS = 0.01
 BASELINE = "baseline"
 PRIMARY_EARLY = "shuffle_early_N4"
 PRIMARY_LATE = "shuffle_late_N4"
-NEGATIVE_CONTROL_PREFIX = "permute_early_"
+NEGATIVE_CONTROL_PREFIX = "fixed_early_"
 
 SCAR = "SCAR"
 RECOVERED = "RECOVERED"

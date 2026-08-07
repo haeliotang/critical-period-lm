@@ -44,19 +44,20 @@ absent effect under one schedule does not rule one out under another.
 
 ## Claim C2: the negative control bounds the interpretation
 
-**Statement.** A scar under Deficit S is attributable to the nature of the corruption only
-because Deficit P, which consumes identical budget and preserves the statistical structure
-under relabeling, does not scar.
+**Statement.** A scar under Deficit S is attributable to the destruction of order
+information only because Deficit F — the same operation on the same tokens, differing only
+in that its permutation is fixed and therefore invertible — does not scar.
 
-**Evidence required.** Every registered `permute_early` cell returns `RECOVERED`, with its
+**Evidence required.** Every registered `fixed_early` cell returns `RECOVERED`, with its
 minimum detectable effect reported.
 
 **Maximum scope.** Rules out the compute-loss explanation and the
 any-early-perturbation-scars explanation, for these two deficits.
 
-**Forbidden extension.** That all statistics-preserving perturbations are harmless, or that
-Deficit P is a general-purpose control for other studies. A control that recovers has ruled
-out one alternative, not the class.
+**Forbidden extension.** That all information-preserving perturbations are harmless, or that
+Deficit F is a general-purpose control for other studies. A control that recovers has ruled
+out one alternative, not the class — and the control this one replaced looked just as sound
+in prose before pilot 2 measured it.
 
 ## Claim C3: a null here is a bounded null
 

@@ -1,6 +1,6 @@
 # Preregistration: Critical Learning Periods in Small Language Models
 
-**Design version:** `v1.2-draft` (not frozen)
+**Design version:** `v1.3-draft` (not frozen)
 **Status:** pre-calibration, pre-freeze. No training run may be registered against this
 document until the calibration gate in Section 8.1 closes and the freeze tag exists.
 
@@ -113,9 +113,20 @@ measured throughput are recorded in the freeze so that the budget is auditable.
 Section 4.5. Decaying to a fraction of peak leaves the loss still falling at the end of
 training, which means "the model has recovered" is a state no run ever reaches; annealing
 to zero makes convergence a property of the schedule rather than of the absolute step
-count. A consequence worth stating because it is used: a scaled-down run under this
-schedule converges at its own `T_total`, so a short pilot is a valid rehearsal of a
-full-budget study rather than a truncated one.
+count.
+
+**Warmup is 2% of `T_total`, not a fixed step count.** This matters more than it sounds.
+Pilot 2 used a fixed 500-step warmup, which was 9.3% of a 5,400-step run but 1.2% of a
+43,200-step one — so the entire early deficit fell inside warmup at pilot scale and only 16%
+of it did at full scale. The early arm was a different treatment at the two budgets, and the
+learning-rate-weighted disturbance during the deficit differed between arms by 2.28× at
+pilot scale against 0.92× at full scale.
+
+Together these two make a claim that was asserted prematurely in design version v1.2 true:
+**a scaled-down run rehearses a full-budget study rather than truncating one.** Convergence
+follows the schedule, and now so does every ratio that defines the treatment. The earlier
+version of this paragraph claimed the same thing on the strength of convergence alone; that
+was wrong, and pilot 2 is where it was caught.
 
 ### 4.2 Deficits
 
@@ -128,23 +139,35 @@ batch. This destroys local sequential structure — the low-level statistics an 
 must acquire — while leaving the token-frequency distribution and the corpus vocabulary
 untouched. It is the intended analogue of blur.
 
-**Deficit P — vocabulary permutation (negative control, predicted to recover).** Apply a
-single fixed bijection over token ids to inputs and targets alike, for the duration of the
-deficit window, then remove it. The corrupted task is isomorphic to the clean task: every
-statistical regularity survives, relabeled. A model trained under Deficit P learns a
-perfectly good model of a relabeled language and must, on removal, remap its embedding and
-output layers while its interior structure remains applicable. It is the intended analogue
-of vertical flip.
+**Deficit F — fixed window permutation (negative control, predicted to recover).** Apply the
+*same* operation as Deficit S — reorder tokens within each non-overlapping window of `W` —
+but with a single permutation drawn once for the whole study and reused for every window of
+every batch, instead of resampled. The reordering is therefore deterministic and
+invertible: the sequence still contains everything the clean sequence contained, positionally
+relabeled, and a model can in principle learn to read the scrambled order. Deficit S destroys
+order information outright; Deficit F only hides it behind a fixed code.
 
-Deficit P is load-bearing in two distinct ways, and both must be stated:
+Same operation, same locus, same surface magnitude, differing in exactly one property:
+fixed versus resampled. That is what a negative control has to be.
 
-1. It is the **statistics-preserving control**. Without it, a scar under Deficit S is
+**This replaces an earlier control that did not work.** Design versions up to v1.2 used a
+vocabulary permutation, on the reasoning that a relabeled language is isomorphic to the
+original and therefore harmless. Pilot 2 refuted it: at identical onset and duration the
+vocabulary permutation left twelve times the damage of Deficit S (+0.0324 against +0.0027
+nats), and the damage was permanent. With tied embeddings a vocabulary permutation
+invalidates the whole input and output interface rather than perturbing the input — it is
+not the analogue of a vertical flip, it is the analogue of replacing the eye. The reasoning
+was wrong and the experiment said so; the deviation is recorded in `deviations/`.
+
+Deficit F is load-bearing in two distinct ways, and both must be stated:
+
+1. It is the **information-preserving control**. Without it, a scar under Deficit S is
    uninterpretable, because nothing rules out that any sufficiently disruptive early
    perturbation scars.
 2. It is the **compute-matched control**. It consumes exactly the same `N` steps of
    budget on non-clean data, so it absorbs the "those steps were wasted" explanation.
 
-If Deficit P scars, the design has failed and no critical-period claim may be made from
+If Deficit F scars, the design has failed and no critical-period claim may be made from
 this study. See Section 7.3.
 
 ### 4.3 Registered condition grid
@@ -160,14 +183,14 @@ denoted `N1 < N2 < N3 < N4`.
 | `shuffle_late_N4` | S | `[0.5T, 0.5T + N4)` | 4 |
 | `shuffle_early_{N1..N3}` | S | `[0, N)` | 3 each |
 | `shuffle_late_{N1..N3}` | S | `[0.5T, 0.5T + N)` | 3 each |
-| `permute_early_{N1..N4}` | P | `[0, N)` | 3 each |
+| `fixed_early_{N1..N4}` | F | `[0, N)` | 3 each |
 
 The two `N4` cells carry four seeds because they form the primary contrast, and an exact
 permutation test on 4 versus 4 can reach `p = 1/70 ≈ 0.014` while 3 versus 3 bottoms out
 at `p = 0.05`. Seeds are drawn from a registered list, in order, never selected.
 
 Out of scope for this study, and not to be added later without an amendment: a late-onset
-arm for Deficit P, an onset sweep at finer resolution, deficits applied to evaluation
+arm for Deficit F, an onset sweep at finer resolution, deficits applied to evaluation
 data, model-scale sweeps, and any architecture variation.
 
 ### 4.4 Recovery protocol
@@ -250,7 +273,7 @@ rather than being reported as a clean negative.
 
 `CRITICAL_PERIOD` requires all of:
 
-1. every `permute_early` cell returns `RECOVERED` (Section 7.3 otherwise);
+1. every `fixed_early` cell returns `RECOVERED` (Section 7.3 otherwise);
 2. `shuffle_early_N4` returns `SCAR`;
 3. the primary permutation test rejects at `α = 0.05` in the registered direction;
 4. `Δ_primary ≥ margin`.
@@ -272,7 +295,7 @@ Descriptive only. No secondary measure can promote, demote, or qualify a primary
 
 ## 6. Registered controls
 
-**Negative control.** `permute_early_{N1..N4}` must recover. This is the design's own
+**Negative control.** `fixed_early_{N1..N4}` must recover. This is the design's own
 falsification test, and it is checked before any primary result is read.
 
 **Null band.** The 5 baseline seeds supply the null distribution. Seed variance, not an
@@ -311,7 +334,7 @@ A judgment rule that has never been run against a known answer is not a register
 Each of these terminates the critical-period claim and is reported as a design failure,
 not as a negative result:
 
-- any `permute_early` cell returns `SCAR`;
+- any `fixed_early` cell returns `SCAR`;
 - baseline seed variance is large enough that `margin` exceeds the total baseline-to-random
   loss range by more than 10%, i.e. the instrument cannot resolve anything;
 - any run diverges, produces non-finite loss, or terminates early, and the condition
@@ -321,9 +344,9 @@ not as a negative result:
 ### 7.4 Budget gate
 
 If the calibrated full grid exceeds the declared wall-clock ceiling, it is reduced before
-freeze, in this fixed priority order: drop `N2`, then `N3`, then the `permute_early` cells
+freeze, in this fixed priority order: drop `N2`, then `N3`, then the `fixed_early` cells
 at `N1` and `N2`. Never reduced: the two `N4` primary cells below 4 seeds, the baseline
-below 5 seeds, the `permute_early_N4` cell, and the recovery multiplier `R`.
+below 5 seeds, the `fixed_early_N4` cell, and the recovery multiplier `R`.
 
 ## 8. Calibration, before freeze
 
@@ -350,7 +373,25 @@ Calibration runs are exploratory. They are labeled as such, they are excluded fr
 analysis, and they are stored outside `runs/`. Nothing measured during calibration may be
 used to choose the primary endpoint, the margin, the direction, or `R`.
 
-### 8.2 What calibration may not touch
+### 8.2 Budget-doubling diagnostic, required before the freeze
+
+Annealing to zero buys convergence by forcing it: when the learning rate reaches zero every
+condition stops moving, including one that had not finished recovering. Convergence under
+this schedule therefore cannot by itself distinguish a scar from a deficit frozen in place
+before it could be repaired.
+
+The discriminator is budget dependence. Run the baseline and one deficit arm at `T_total`
+and again at `2·T_total`, and compare the asymptotic gap:
+
+- gap materially smaller at the doubled budget — the difference is a lag, and "permanent"
+  is an artefact of where the schedule was cut off;
+- gap unchanged — the difference survives a doubling of the recovery it was given, which is
+  the strongest statement this design can make about permanence.
+
+The comparison is descriptive and is reported alongside the primary verdict. It is required
+because without it "permanent" means only "still there when the learning rate hit zero".
+
+### 8.3 What calibration may not touch
 
 The deficit definitions, the condition grid shape, the primary contrast, the decision
 rules, and the claim register. If calibration reveals that one of these is wrong, that is

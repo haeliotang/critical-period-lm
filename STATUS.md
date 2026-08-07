@@ -1,14 +1,13 @@
 # Study status
 
 **Updated:** 2026-08-06
-**Design version:** `v1.2-draft`
-**Lifecycle state:** `DESIGN-DRAFT; PILOT-2-RUNNING; PRE-FREEZE`
-**Authorized next action:** read out pilot 2, which tests whether the negative control
-recovers under the corrected geometry and the zero-annealed schedule. No registered training
-run is authorized, and no grid should run while the control is unproven.
+**Design version:** `v1.3-draft`
+**Lifecycle state:** `DESIGN-DRAFT; ENDPOINT-UNDER-REVIEW; PRE-FREEZE`
+**Authorized next action:** decide whether the primary endpoint moves from a single-budget
+loss difference to a budget-asymptotic one. No registered training run is authorized.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
-pipeline, the model, and the trainer all exist. `make check` passes: 73 tests, including the
+pipeline, the model, and the trainer all exist. `make check` passes: 82 tests, including the
 Section 7.2 rehearsal gate, in which the frozen decision code returns each of its four
 verdicts against a planted ground truth.
 
@@ -169,55 +168,123 @@ step count, a 5,400-step run converges at 5,400 steps. A scaled-down pilot is th
 valid rehearsal of a full-budget study rather than a truncated one, and pilot 2 costs 5.4
 hours instead of 21.
 
+## Pilot 2: complete, invalid, decisive about the control
+
+14 runs at 5,400 steps, corrected geometry, cosine to zero. Verdict `DESIGN_FAILURE` — the
+negative control scarred again. Archived under `calibration/archive/`.
+
+| Condition | n | Delta vs baseline | p | Verdict |
+| --- | --- | --- | --- | --- |
+| `shuffle_early_N4` | 3 | **+0.0027** | 0.107 | **RECOVERED** |
+| `permute_early_N4` | 3 | +0.0324 | 0.018 | SCAR |
+| `shuffle_late_N4` | 3 | +0.0367 | 0.018 | SCAR |
+
+Baseline 2.0401, seed SD 0.0030, margin at the 0.0100 floor. Primary contrast −0.0341
+(p = 1.000): late worse than early again.
+
+The gaps had stopped closing. All four conditions ended with the same tail slope
+(0.0013–0.0016 nats over the last 400 steps) and the deficit-to-baseline gaps moved by
+−0.0002 or less over that span. The measurement machinery works and the differences are
+stable; what they mean is the question.
+
+### Three findings, and three changes
+
+**1. Deficit P is not a valid control — refuted, not doubted.** `permute_early` and
+`shuffle_early` share onset and duration exactly and differ only in deficit type, and the
+"harmless" one left twelve times the damage. With tied embeddings a vocabulary permutation
+invalidates the input and output interface rather than perturbing the input. Replaced by
+Deficit F, the same window reordering as Deficit S but with a fixed, invertible permutation.
+See `deviations/2026-08-06-negative-control-replaced.md`.
+
+**2. The claim that a scaled-down pilot rehearses the full study was false.** `warmup_steps`
+was a fixed 500, so it covered 100% of the early deficit at pilot scale and 16% at full
+scale; the LR-weighted disturbance during the deficit differed between arms by 2.28× at
+pilot scale against 0.92× at full. `shuffle_early` recovering perfectly may say only that
+its deficit landed while the model was barely learning. Warmup is now 2% of `T_total`. See
+`deviations/2026-08-06-warmup-made-proportional.md`.
+
+**3. Annealing to zero buys convergence by forcing it.** When the learning rate reaches zero
+every condition stops moving, including one that had not finished recovering, so convergence
+cannot by itself separate a scar from a deficit frozen in place. The late arm's gap
+trajectory (0.107 → 0.053 → 0.039 → 0.037 → 0.037) decelerates smoothly rather than being
+cut off, which is mildly reassuring, but decay causes smoothing too and the two are not
+separable from one run. Registered response: the budget-doubling diagnostic, Section 8.2.
+
+## Pilot 3 and the budget-doubling diagnostic: the endpoint does not survive
+
+14 runs at 5,400 steps with proportional warmup and Deficit F as the control, then baseline
+and `shuffle_late_N4` again at 10,800. Verdict `DESIGN_FAILURE`: the control scarred again.
+
+| Condition | n | Delta vs baseline | p | Verdict |
+| --- | --- | --- | --- | --- |
+| `fixed_early_N4` (control) | 3 | **+0.0516** | 0.018 | SCAR |
+| `shuffle_early_N4` | 3 | +0.0441 | 0.018 | SCAR |
+| `shuffle_late_N4` | 3 | +0.0333 | 0.018 | SCAR |
+
+Baseline 2.0369, seed SD 0.0068, margin 0.0204. Primary contrast +0.0108 at p = 0.0500 —
+the registered direction for the first time, but below the margin.
+
+### The diagnostic fired on first use
+
+| | `shuffle_late_N4` gap to baseline |
+| --- | --- |
+| `T_total` = 5,400 | +0.0370 |
+| `T_total` = 10,800 | +0.0213 |
+
+The gap fell by 42% on one doubling — a factor of 0.58, where a permanent scar would give
+1.00. Baseline loss itself went 2.0307 to 1.8544, so nothing is close to finished at 5,400
+steps. **What every pilot so far has scored as permanent damage is substantially unfinished
+recovery, frozen in place when the learning rate reached zero.**
+
+Extrapolating the observed factor: 0.012 at 21,600, 0.007 at 43,200, 0.004 at 86,400. That
+is the signature of a lag decaying toward nothing, not of a scar.
+
+### The scaled-pilot claim is retracted, not repaired
+
+Design version v1.2 claimed a scaled-down run rehearses a full-budget study; v1.3 repaired
+the claim by making warmup proportional and asserted it again. It is wrong a second time,
+and for a different reason: **recovery consumes an absolute amount of training, not a
+fraction of the budget.** Annealing makes a short run converge, but it converges to a state
+that still contains unfinished repair. Scale-invariant treatment geometry is necessary and
+not sufficient. The claim is withdrawn rather than repaired a third time.
+
+### The control failed again, and worse than the treatment
+
+Deficit F left more damage than Deficit S at the same onset and duration (+0.0516 against
++0.0441). Two controls, two refuted predictions. The parsimonious reading is the one above:
+at this budget nothing recovers, so no control can. A second, weaker hypothesis is that a
+*fixed* permutation is learnable, so the model commits to a wrong but consistent grammar and
+must then unlearn it, whereas a resampled permutation is unlearnable and is partly ignored.
+If that holds, the axis a control must vary is commitment, not invertibility. It is a
+hypothesis; it has not been tested.
+
+### Cost of the warmup fix
+
+Shortening warmup from 500 steps to 108 doubled baseline seed variance: SD 0.0030 to 0.0068,
+margin 0.0100 to 0.0204. Same budget, same everything else. The instrument is half as sharp
+as it was, and the warmup fraction is now itself a tuning question.
+
 ## What still has to happen before the freeze
 
-1. ~~Decide what to do about the recovery asymmetry.~~ Settled: anneal to zero, registered
-   in Sections 4.1 and 4.5, gate in 8.1, passed by calibration run 2.
-2. **Pilot 2 — running.** Corrected geometry, cosine to zero, 14 runs at 5,400 steps. The
-   question it exists to answer is whether Deficit P recovers when it is actually given the
-   recovery it was promised. Until that is known the negative control is unproven and no
-   grid should run.
-3. **Choose `T`** and re-check the convergence gate at the chosen `T_total`. Passing at
-   5,400 steps does not automatically transfer, though the schedule argument says it
-   should.
-4. **Apply the Section 7.4 budget gate** and declare the wall-clock ceiling, which still
-   does not exist.
-5. ~~Verify the bibliographic identifiers.~~ Done 2026-08-06; it turned up two papers absent
-   from the draft, both now in Section 2.1, both narrowing the claim.
-6. **Re-measure the budget table.** The figures above are from the old schedule; throughput
-   is unchanged but the loss column no longer applies.
+1. **Decide whether the primary endpoint changes.** A final-loss difference at one budget
+   cannot separate a scar from a lag, and the diagnostic says lag dominates everywhere this
+   hardware can reach. The candidate replacement is budget-asymptotic: measure whether the
+   gap goes to zero as the budget grows, which is what "can later training repair it" asks.
+   A ladder of 5,400 / 10,800 / 21,600 for two conditions at 3 seeds costs 16 hours; adding
+   the 43,200 rung costs 34.
+2. **Reconsider the control** in light of the learnability hypothesis, or drop the control
+   requirement in favour of the ladder, where the control's role is served by the shape of
+   the decay.
+3. **Revisit the warmup fraction**, which is now trading pilot validity against seed noise.
+4. Everything previously listed remains open: choose `T`, declare the wall-clock ceiling,
+   re-measure the budget table.
 
 ## Known open design questions
 
-Recorded because they affect interpretation and are not yet settled. Settling them before
-the freeze is an edit to the design; settling them after is an amendment.
-
-- Deficit P may recover so quickly that it is a weak control. It rules out the compute-loss
-  explanation regardless, but a near-instant recovery says less about the
-  statistics-preserving comparison than a slower one would.
-- The late-arm onset is fixed at `0.5T` by fiat, justified by symmetry and nothing else.
-- Whether a window shuffle at the BPE-token level disturbs sub-word structure enough to be
-  a lower-level deficit than intended.
-- **There is no plateau to put `T` at, and this needs a decision before the freeze.** Under
-  the fitted law `loss ≈ 4.25 − 0.261·ln(step)`, the improvement over the final fraction `f`
-  of training is `0.261·ln(1/(1−f))` — which does not depend on `T_total` at all. The final
-  10% of training buys 0.0275 nats whether the run is 20,000 steps or 200,000. So "train
-  until the baseline has visibly plateaued" (Section 8.1) describes a state this curve never
-  reaches, and no choice of `T` satisfies it.
-
-  The consequence is sharper than a wording problem. "Permanent damage" was operationalised
-  as a level difference that survives to the end of a generous recovery budget. If the
-  baseline is still descending, a deficit condition that is merely *behind* — still closing
-  the gap, just slower — produces the same final-level difference as one that is genuinely
-  scarred. Level alone cannot separate a scar from a lag.
-
-  The measurable version is the gap, not the level: a scar is permanent if the difference
-  between the deficit condition and the baseline has stopped shrinking by the end of
-  training. The run records already carry the eval curves needed to check this, so the pilot
-  will show whether gap closure is a live problem or a theoretical one. **This is a change
-  to the decision rules and has not been made.** It is recorded here as an open question
-  rather than applied, because rewriting the judgment logic on the strength of an argument,
-  before the data that would settle it exists, is the thing this repository is built to
-  prevent.
+- No negative control has yet recovered, under two different definitions.
+- The late-arm onset is fixed at `0.5T` by fiat.
+- Post-deficit learning-rate area is 51% for the late arm at both scales; in a fixed-budget
+  design "later" and "less recovery remains" may be the same fact.
+- Whether a window shuffle at the BPE-token level is a lower-level deficit than intended.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.

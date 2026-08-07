@@ -53,8 +53,8 @@ def grid(baseline, early, late, permute, filler=None):
         "shuffle_late_N4": late,
         "shuffle_early_N1": filler,
         "shuffle_late_N1": filler,
-        "permute_early_N1": permute,
-        "permute_early_N4": permute,
+        "fixed_early_N1": permute,
+        "fixed_early_N4": permute,
     }
 
 
@@ -136,7 +136,7 @@ class CellVerdictTests(unittest.TestCase):
 
     def test_difference_below_the_margin_is_recovered(self):
         margin = registered_margin(self.baseline)
-        result = cell_verdict("permute_early_N4", [1.001, 1.003, 0.999], self.baseline, margin)
+        result = cell_verdict("fixed_early_N4", [1.001, 1.003, 0.999], self.baseline, margin)
         self.assertEqual(result.verdict, RECOVERED)
 
     def test_large_but_unseparated_difference_is_inconclusive(self):
@@ -151,7 +151,7 @@ class CellVerdictTests(unittest.TestCase):
         # No difference, but seed spread within the cell is five times the margin, so
         # this cell could not have seen the effect it is reporting the absence of.
         margin = registered_margin(self.baseline)
-        result = cell_verdict("permute_early_N4", [0.95, 1.05, 1.00], self.baseline, margin)
+        result = cell_verdict("fixed_early_N4", [0.95, 1.05, 1.00], self.baseline, margin)
         self.assertEqual(result.verdict, RECOVERED)
         self.assertGreater(result.mde, margin)
         self.assertTrue(result.underpowered)

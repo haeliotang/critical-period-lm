@@ -72,7 +72,7 @@ pilot:
 			--condition shuffle_late_N4 --seed $$s --deficit shuffle \
 			--onset-frac 0.5 --duration-frac 0.16 --total-steps $(PILOT_STEPS) || exit 1; \
 		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
-			--condition permute_early_N4 --seed $$s --deficit permute \
+			--condition fixed_early_N4 --seed $$s --deficit fixed \
 			--onset-frac 0.0 --duration-frac 0.16 --total-steps $(PILOT_STEPS) || exit 1; \
 	done
 	$(MAKE) report-calibration

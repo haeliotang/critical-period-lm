@@ -38,20 +38,25 @@ import numpy as np
 from critical_period_lm import freeze
 from critical_period_lm.data import DATA_DIR, load_tokens
 from critical_period_lm.deficits import (
+    FIXED,
     NONE,
     PERMUTE,
+    SHUFFLE_WINDOW,
     DeficitSchedule,
     make_vocab_permutation,
+    make_window_permutation,
     steps_from_clean_budget,
 )
+from critical_period_lm.deficits import warmup_steps as registered_warmup_steps
 from critical_period_lm.model import ModelConfig, Transformer
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIR = ROOT / "runs"
 CALIBRATION_DIR = ROOT / "calibration"
 
-# Fixed for the whole study so that Deficit P is the same relabeling in every run.
+# Fixed for the whole study so that each control is the same transformation in every run.
 VOCAB_PERMUTATION_SEED = 20260806
+WINDOW_PERMUTATION_SEED = 20260807
 
 
 @dataclass(frozen=True)
@@ -65,7 +70,6 @@ class TrainConfig:
     batch_size: int = 32
     learning_rate: float = 3e-4
     final_learning_rate: float = 0.0
-    warmup_steps: int = 500
     weight_decay: float = 0.1
     grad_clip: float = 1.0
     eval_every: int = 500
@@ -91,17 +95,25 @@ class TrainConfig:
         """
         if self.deficit == NONE:
             return DeficitSchedule()
-        permutation = (
-            make_vocab_permutation(self.model.vocab_size, VOCAB_PERMUTATION_SEED)
-            if self.deficit == PERMUTE
-            else None
-        )
         return DeficitSchedule(
             kind=self.deficit,
             onset_step=steps_from_clean_budget(self.total_steps, self.onset_frac),
             duration_steps=steps_from_clean_budget(self.total_steps, self.duration_frac),
-            vocab_permutation=permutation,
+            vocab_permutation=(
+                make_vocab_permutation(self.model.vocab_size, VOCAB_PERMUTATION_SEED)
+                if self.deficit == PERMUTE
+                else None
+            ),
+            window_permutation=(
+                make_window_permutation(WINDOW_PERMUTATION_SEED, SHUFFLE_WINDOW)
+                if self.deficit == FIXED
+                else None
+            ),
         )
+
+    @property
+    def warmup_steps(self) -> int:
+        return registered_warmup_steps(self.total_steps)
 
 
 def training_batches(tokens: np.ndarray, config: TrainConfig):
@@ -251,6 +263,7 @@ def train(config: TrainConfig, data_dir: Path = DATA_DIR, calibration: bool = Fa
             "duration_steps": schedule.duration_steps,
             "steps_actually_applied": deficit_steps,
         },
+        "warmup_steps": config.warmup_steps,
         "config": config.as_dict(),
         "data_manifest": data_manifest,
         "model": {
@@ -284,7 +297,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--condition", default="baseline")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--deficit", choices=["none", "shuffle", "permute"], default="none")
+    parser.add_argument(
+        "--deficit", choices=["none", "shuffle", "fixed", "permute"], default="none"
+    )
     parser.add_argument("--onset-frac", type=float, default=0.0)
     parser.add_argument("--duration-frac", type=float, default=0.0)
     parser.add_argument("--total-steps", type=int, default=TrainConfig.total_steps)
