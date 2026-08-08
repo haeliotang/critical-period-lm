@@ -139,6 +139,47 @@ class ReportTests(unittest.TestCase):
         self.assertIn("Study report", text)
 
 
+class DroppedRunTests(unittest.TestCase):
+    """A run that was trained and could not be paired must be visible in the report."""
+
+    def setUp(self):
+        self._tmp = TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+
+    def _text(self):
+        records, raw = report.load_runs(self.dir)
+        return report.format_report(
+            report.study_verdict(records), records, raw, exploratory=True
+        )
+
+    def test_a_complete_ladder_reports_no_drops(self):
+        write_ladder(self.dir)
+        self.assertIn("None. Every deficit run had a baseline partner", self._text())
+
+    def test_a_deficit_seed_with_no_baseline_partner_is_reported(self):
+        # The exact defect ladder 1 hit: primary arms carried a seed the baseline did not,
+        # so those runs trained and then contributed nothing.
+        write_ladder(self.dir)
+        for budget in BUDGETS:
+            run = self.dir / f"shuffle_early_N4-{budget}-3"
+            run.mkdir()
+            (run / "run.json").write_text(
+                json.dumps(
+                    {
+                        "condition": "shuffle_early_N4",
+                        "seed": 3,
+                        "final_eval_loss": 1.9,
+                        "total_steps": budget,
+                        "data_manifest": {"vocab_size": 4096},
+                    }
+                )
+            )
+        text = self._text()
+        self.assertIn("3 deficit run(s) contributed no gap", text)
+        self.assertIn("seed-plan defect", text)
+
+
 class FreezeGateTests(unittest.TestCase):
     def test_a_registered_report_refuses_without_an_intact_freeze(self):
         with patch.object(freeze, "verify_manifest", return_value=["design not frozen"]):

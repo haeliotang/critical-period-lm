@@ -27,7 +27,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from critical_period_lm import freeze  # noqa: E402
-from critical_period_lm.decision_rules import RunRecord, study_verdict  # noqa: E402
+from critical_period_lm.decision_rules import (  # noqa: E402
+    RunRecord,
+    paired_gaps,
+    study_verdict,
+)
 
 RUNS_DIR = ROOT / "runs"
 CALIBRATION_DIR = ROOT / "calibration"
@@ -98,6 +102,35 @@ def format_report(result, records: list[RunRecord], raw: list[dict], exploratory
         f"- Delta (early minus late): {result.primary_delta:+.4f} nats/token",
         f"- Exact permutation p: {result.primary_p_value:.4f}",
         f"- Minimum detectable effect: {result.primary_mde:.4f}",
+    ]
+
+    # Section 5.1 requires dropped runs to be reported. A deficit run with no baseline
+    # partner at its own budget and seed contributes no gap, and saying so is the only way
+    # a reader can tell an unpairable seed plan from a complete one.
+    paired = {
+        (condition, budget, seed)
+        for condition, by_budget in paired_gaps(records).items()
+        for budget, by_seed in by_budget.items()
+        for seed in by_seed
+    }
+    dropped = sorted(
+        (r.condition, r.total_steps, r.seed)
+        for r in records
+        if r.condition != "baseline" and (r.condition, r.total_steps, r.seed) not in paired
+    )
+    lines += ["", "## Runs dropped for want of a baseline partner", ""]
+    if dropped:
+        lines.append(
+            f"**{len(dropped)} deficit run(s) contributed no gap.** Each was trained and "
+            "then could not be paired, so its cost bought nothing. This is a seed-plan "
+            "defect, not a data-quality exclusion."
+        )
+        lines += ["", "| Condition | Budget | Seed |", "| --- | --- | --- |"]
+        lines += [f"| `{c}` | {b:,} | {s} |" for c, b, s in dropped]
+    else:
+        lines.append("None. Every deficit run had a baseline partner at its budget and seed.")
+
+    lines += [
         "",
         "## Runs included",
         "",

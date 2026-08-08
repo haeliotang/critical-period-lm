@@ -2,12 +2,12 @@
 
 **Updated:** 2026-08-06
 **Design version:** `v2-draft`
-**Lifecycle state:** `DESIGN-V2-DRAFT; LADDER-1-RUNNING; PRE-FREEZE`
-**Authorized next action:** read out ladder 1 and apply the registered extension rule if it
-fires. No registered training run is authorized.
+**Lifecycle state:** `DESIGN-V2-DRAFT; LADDER-1-COMPLETE; PRE-FREEZE`
+**Authorized next action:** decide how to handle the fired extension rule, whose rung was
+sized by an extrapolation the data have refuted. No registered training run is authorized.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
-pipeline, the model, and the trainer all exist. `make check` passes: 83 tests, including the
+pipeline, the model, and the trainer all exist. `make check` passes: 85 tests, including the
 Section 7.2 rehearsal gate, in which the frozen decision code returns each of its four
 verdicts against a planted ground truth.
 
@@ -298,24 +298,99 @@ the observed decay factor was 0.58 per doubling, which would put the late-arm ga
 at 10,800 and 0.012 at 21,600 against a margin of 0.010 to 0.020. A three-rung ladder is
 therefore more likely than not to return `DECAYING_UNRESOLVED` and trigger the extension.
 
+## Ladder 1: complete, and the answer is lag-shaped
+
+42 runs across 2,700 / 5,400 / 10,800. Verdict `NO_CRITICAL_PERIOD`. Archived under
+`calibration/archive/ladder1/`.
+
+| Condition | 2,700 | 5,400 | 10,800 | slope | p | verdict |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fixed_early_N4` | +0.1070 | +0.0559 | +0.0229 | −0.0421 | 0.0006 | DECAYING_UNRESOLVED |
+| `shuffle_early_N4` | +0.0957 | +0.0483 | +0.0221 | −0.0368 | 0.0006 | DECAYING_UNRESOLVED |
+| `shuffle_late_N4` | +0.0644 | +0.0376 | +0.0218 | −0.0213 | 0.0006 | DECAYING_UNRESOLVED |
+
+Baseline seed SD 0.0021 at the top rung, so the margin sits at the 0.0100 floor. Primary
+contrast +0.0003 nats, p = 0.5000, MDE 0.0100 — onset made no detectable difference at a
+resolution equal to the margin.
+
+**The decay is the 1/T signature of a pure lag.** Factors per doubling: 0.52/0.41,
+0.51/0.46, 0.58/0.58. A permanent scar predicts 1.00; a lag whose cost is fixed predicts
+0.50. Every condition sits at the lag prediction.
+
+**All three conditions converge to the same gap.** They start 0.107 / 0.096 / 0.064 and end
+0.0229 / 0.0221 / 0.0218 — within 0.001 of each other. The residual is a property of *some
+corruption having happened*, not of which corruption or when.
+
+**The wound's cost is strongly sublinear in its length.** Converting gap to effective
+training steps lost (`Δ_eff = T·gap/b`, with `b` estimated locally from the baseline
+rungs), quadrupling the wound from 200 to 800 steps raises the cost by roughly a third:
+
+| Condition | wound 200 | wound 400 | wound 800 |
+| --- | --- | --- | --- |
+| `fixed_early_N4` | 778 | 814 | 968 |
+| `shuffle_early_N4` | 696 | 703 | 935 |
+| `shuffle_late_N4` | 469 | 546 | 924 |
+
+Damage behaves closer to a fixed startup cost of order 700–1,000 effective steps than to
+anything proportional. `b` is not constant across rungs (0.371 then 0.255) so the levels
+carry real uncertainty; the sublinearity does not depend on that, since the gap halved per
+doubling while the wound doubled.
+
+**This retires the v2 confound.** The worry in `drafts/v3-wsd-design.md` was that a
+wound-proportional lag would produce a flat gap and be indistinguishable from a scar. A flat
+gap is factor 1.00; the data show 0.41–0.58. The alternative is refuted empirically, so v3
+is a confirmatory sharpening rather than a prerequisite for reading this result.
+
+### Two defects in the instrument, found in this readout
+
+**Seed plan cannot pair.** The Section 4.3 table gives the baseline 3 seeds and the primary
+arms 4, while Section 5.1 pairs gaps by seed. Seed 3 of both shuffle arms therefore had no
+partner at any rung: 6 runs trained and contributed nothing, about 2.6 hours, and the
+primary contrast ran at 3 versus 3 (permutation floor 0.05) instead of the intended 4 versus
+4 (floor 0.014). The baseline must carry every seed any deficit arm uses.
+
+**The crossing-budget extrapolation uses the wrong functional form.** `ladder_verdict` fits
+gap linearly in log budget, which on this data predicts *negative* gaps at 21,600 — the
+model is not merely imprecise, it is the wrong shape. Against the 1/T behaviour the data
+show:
+
+| Condition | crossing, log-linear | crossing, 1/T |
+| --- | --- | --- |
+| `fixed_early_N4` | 12,710 | 24,705 |
+| `shuffle_early_N4` | 12,695 | 23,880 |
+| `shuffle_late_N4` | 14,943 | 23,587 |
+
+The reported figure is optimistic by about a factor of two, and the registered extension
+rung was sized by it.
+
+### The extension rule fired, and the rung it names is too small
+
+Both `fixed_early_N4` and `shuffle_early_N4` returned `DECAYING_UNRESOLVED`, so the
+Section 5.2 rule fires: one rung at 21,600, about 21 hours. Under 1/T the predicted gaps
+there are 0.0114 / 0.0111 / 0.0109 against a margin of 0.0100 — all still above it. The
+extension would most likely return `DECAYING_UNRESOLVED` again, and the rule permits only
+one extension, so that would become the study's final answer. Resolution needs roughly
+43,200 steps.
+
 ## What still has to happen before the freeze
 
-1. **Read out ladder 1**, and apply the extension rule if it fires.
-2. **Choose the registered base budget** and re-check the Section 8.1 convergence gate at
-   the top rung.
-3. **Declare the wall-clock ceiling**, which still does not exist.
-4. **Re-measure the budget table.** Every figure in it predates the schedule change.
+1. **Decide what to do about the extension**, given that the registered rung was sized by a
+   model the data have since refuted. The options are to run it as registered, to amend the
+   rung before running it, or to report the decay law itself as the answer.
+2. **Fix the seed plan** so the baseline carries every seed used by any deficit arm.
+3. **Decide whether the crossing-budget quantity is repaired or withdrawn.**
+4. **Decide v2 versus v3** — now a question of how much sharpening is worth buying, not of
+   whether the result is readable.
+5. **Declare the wall-clock ceiling**, which still does not exist.
 
 ## Known open design questions
 
-- No negative control has yet decayed away, under two definitions — but neither has been
-  tested under an endpoint that could have detected decay.
+- No control has yet returned `TRANSIENT`; the control is on the same 1/T trajectory as
+  everything else and simply has not been given a budget large enough to cross the floor.
+- The margin floor of 0.01 nats, not seed noise, is what decides every verdict here. Under a
+  1/T decay nothing is ever exactly zero, so `TRANSIENT` is a statement about budget against
+  floor. That is defensible but should be said out loud in any write-up.
 - The late-arm onset is fixed at `0.5T` by fiat.
-- Post-deficit learning-rate area is 51% for the late arm at both scales; in a fixed-budget
-  design "later" and "less recovery remains" may be the same fact rather than a separable
-  confound. The ladder does not resolve this; it measures each arm's own decay.
 - Whether a window shuffle at the BPE-token level is a lower-level deficit than intended.
-- The warmup fraction now trades pilot validity against seed noise: shortening it from 500
-  fixed steps to 2% doubled baseline seed SD at 5,400 steps.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.
