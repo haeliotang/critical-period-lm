@@ -20,14 +20,21 @@ _spec.loader.exec_module(report)
 from critical_period_lm import freeze  # noqa: E402
 from critical_period_lm.decision_rules import CRITICAL_PERIOD, DESIGN_FAILURE  # noqa: E402
 
-BUDGETS = (5_400, 10_800, 21_600)
-BASELINE = {5_400: [2.0300, 2.0360, 2.0330], 10_800: [1.8540, 1.8600, 1.8570],
-            21_600: [1.7000, 1.7060, 1.7030]}
-FLAT = {5_400: [0.050, 0.052, 0.048], 10_800: [0.051, 0.049, 0.050],
-        21_600: [0.049, 0.051, 0.050]}
-DECAYS = {5_400: [0.050, 0.052, 0.048], 10_800: [0.020, 0.021, 0.019],
-          21_600: [0.004, 0.005, 0.003]}
-LADDER = {"shuffle_early_N4": FLAT, "shuffle_late_N4": DECAYS, "fixed_early_N4": DECAYS}
+BUDGETS = (2_700, 5_400, 10_800)
+TOP = BUDGETS[-1]
+BASELINE = {2_700: [2.2844, 2.2962, 2.2893], 5_400: [2.0307, 2.0382, 2.0290],
+            10_800: [1.8544, 1.8581, 1.8545]}
+LAG_ALPHAS = (1.05, 0.98, 1.02)
+SLOW_ALPHAS = (0.55, 0.50, 0.52)
+
+
+def gaps_for(alphas, top_gap=0.05):
+    return {b: [top_gap * (TOP / b) ** a for a in alphas] for b in BUDGETS}
+
+
+# Early damage decaying more slowly than late damage: a planted critical period.
+LADDER = {"shuffle_early_N4": gaps_for(SLOW_ALPHAS), "shuffle_late_N4": gaps_for(LAG_ALPHAS),
+          "fixed_early_N4": gaps_for(LAG_ALPHAS)}
 
 
 def write_ladder(directory: Path, gaps=LADDER, baseline=BASELINE) -> None:
@@ -108,7 +115,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("`CRITICAL_PERIOD`", text)
         for condition in LADDER:
             self.assertIn(f"`{condition}`", text)
-        self.assertIn("Does the damage decay?", text)
+        self.assertIn("How the damage decays", text)
         self.assertNotIn("EXPLORATORY", text)
 
     def test_every_budget_rung_appears_in_the_decay_table(self):
@@ -128,10 +135,20 @@ class ReportTests(unittest.TestCase):
         )
         self.assertIn("NOT A REGISTERED RESULT", text)
 
+    def test_the_exponent_and_its_interval_appear(self):
+        write_ladder(self.dir)
+        records, raw = report.load_runs(self.dir)
+        text = report.format_report(
+            report.study_verdict(records), records, raw, exploratory=False
+        )
+        self.assertIn("alpha", text)
+        self.assertIn("Per-seed exponents", text)
+        self.assertIn("does onset change the decay rate", text)
+
     def test_an_incomplete_ladder_formats_without_crashing(self):
         # One rung is a design failure with a NaN margin; the report must still render,
         # because a ladder mid-flight is the normal case for this path.
-        write_ladder(self.dir, gaps={}, baseline={5_400: BASELINE[5_400]})
+        write_ladder(self.dir, gaps={}, baseline={2_700: BASELINE[2_700]})
         records, raw = report.load_runs(self.dir)
         result = report.study_verdict(records)
         text = report.format_report(result, records, raw, exploratory=True)

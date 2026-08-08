@@ -61,14 +61,12 @@ calibrate:
 ladder:
 	@for mult in 1 2 4; do \
 		budget=$$(( $(LADDER_BASE) * $$mult )); \
-		for s in 0 1 2; do \
+		for s in 0 1 2 3 4; do \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
 				--condition baseline --seed $$s --total-steps $$budget || exit 1; \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
 				--condition fixed_early_N4 --seed $$s --deficit fixed \
 				--onset-frac 0.0 --duration-frac 0.16 --total-steps $$budget || exit 1; \
-		done; \
-		for s in 0 1 2 3; do \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
 				--condition shuffle_early_N4 --seed $$s --deficit shuffle \
 				--onset-frac 0.0 --duration-frac 0.16 --total-steps $$budget || exit 1; \

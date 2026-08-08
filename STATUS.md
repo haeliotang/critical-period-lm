@@ -1,13 +1,13 @@
 # Study status
 
-**Updated:** 2026-08-06
-**Design version:** `v2-draft`
-**Lifecycle state:** `DESIGN-V2-DRAFT; LADDER-1-COMPLETE; PRE-FREEZE`
-**Authorized next action:** decide how to handle the fired extension rule, whose rung was
-sized by an extrapolation the data have refuted. No registered training run is authorized.
+**Updated:** 2026-08-08
+**Design version:** `v3-draft`
+**Lifecycle state:** `DESIGN-V3-DRAFT; LADDER-2-PENDING; PRE-FREEZE`
+**Authorized next action:** run ladder 2 under the corrected five-seed plan, then freeze. No
+registered training run is authorized.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
-pipeline, the model, and the trainer all exist. `make check` passes: 85 tests, including the
+pipeline, the model, and the trainer all exist. `make check` passes: 93 tests, including the
 Section 7.2 rehearsal gate, in which the frozen decision code returns each of its four
 verdicts against a planted ground truth.
 
@@ -372,25 +372,90 @@ extension would most likely return `DECAYING_UNRESOLVED` again, and the rule per
 one extension, so that would become the study's final answer. Resolution needs roughly
 43,200 steps.
 
+## Design v3: the endpoint estimates a decay exponent
+
+The endpoint moved from a categorical verdict on gap level to an estimate of how fast the
+gap decays: `gap(T) = c / T^alpha`, fitted per seed, with `alpha` the reported quantity.
+Recorded in `deviations/2026-08-08-endpoint-changed-to-decay-exponent.md`.
+
+`alpha = 1` is exactly what lost training alone predicts, `alpha = 0` is no decay at all,
+and the reading depends on no threshold this study chose. That is the point: the previous
+endpoint made every outcome hinge on an arbitrary 0.01-nat floor, and under a power-law
+decay nothing is ever exactly zero.
+
+Applied to ladder 1's data as an exploratory check, the new endpoint reads:
+
+| Condition | alpha | 95% interval | reading |
+| --- | --- | --- | --- |
+| `fixed_early_N4` (control) | 1.110 | [0.983, 1.237] | LAG |
+| `shuffle_early_N4` | 1.057 | [0.780, 1.334] | LAG |
+| `shuffle_late_N4` | 0.781 | [0.728, 0.833] | SUBLINEAR |
+
+**The control lands on 1 for the first time.** That is what the design predicts of it, and
+three previous controls under two previous endpoints all failed. The late arm's interval
+excludes 1 — late damage outlasts the training it cost, while early damage does not.
+
+Verdict on ladder 1 under the new rules: `INCONCLUSIVE`, and the reason is the seed defect
+below, not the data.
+
+### Five seeds is a requirement, and ladder 1 proves why
+
+The two-sided exact permutation test has a smallest attainable p-value fixed by seed count
+alone:
+
+| Seeds per arm | One-sided floor | Two-sided floor |
+| --- | --- | --- |
+| 3 | 0.050 | **0.100 — cannot reject at 0.05, whatever the effect** |
+| 4 | 0.014 | 0.029 |
+| 5 | 0.004 | 0.008 |
+
+Ladder 1 gave the primary arms four seeds and the baseline three. Gaps pair by seed, so the
+fourth seed was unpairable at every rung: six runs trained and bought nothing, and the
+effective sample fell to three. The exponent difference of +0.276 against a margin of 0.153
+then returned `INCONCLUSIVE` at p = 0.100 — the floor. **The seed-plan defect cost exactly
+the power needed to detect what the data were pointing at.**
+
+The registered plan is now five seeds for every condition, and the baseline must carry every
+seed index any deficit arm uses. That requirement is in Section 4.3 and is a design-failure
+condition in Section 7.3.
+
+### Other consequences applied
+
+- A new verdict `REVERSE_ONSET_EFFECT` names late damage outlasting early damage. Its
+  provenance is recorded in `CLAIMS.md` C4: ladder 1 motivated the name, and the registered
+  study is what would supply evidence for it.
+- The exponent margin is self-calibrating from the control's own seed spread. The nat floor
+  survives only to decide whether a condition did any damage worth modelling.
+- The crossing budget is computed from the power law; the retired log-linear form predicted
+  negative gaps one rung out and understated it roughly twofold.
+- A seed whose gap goes non-positive at any rung is dropped and reported, never nudged into
+  the logarithm.
+- The report now surfaces runs dropped for want of a baseline partner, which Section 5.1
+  always required and the driver never did.
+
+The rehearsal gate was rerun on fabricated ladders with planted exponents and returns all
+five study verdicts correctly. 93 tests pass.
+
 ## What still has to happen before the freeze
 
-1. **Decide what to do about the extension**, given that the registered rung was sized by a
-   model the data have since refuted. The options are to run it as registered, to amend the
-   rung before running it, or to report the decay law itself as the answer.
-2. **Fix the seed plan** so the baseline carries every seed used by any deficit arm.
-3. **Decide whether the crossing-budget quantity is repaired or withdrawn.**
-4. **Decide v2 versus v3** — now a question of how much sharpening is worth buying, not of
-   whether the result is readable.
-5. **Declare the wall-clock ceiling**, which still does not exist.
+1. **Run ladder 2** under the corrected seed plan: 5 seeds, 4 conditions, rungs
+   2,700 / 5,400 / 10,800. 60 runs, 378,000 steps, about 26.4 hours. This is still
+   exploratory — it is the last calibration before the freeze, not the registered study.
+2. **Freeze**, if ladder 2's control reads `LAG` and the machinery behaves.
+3. **Run the registered ladder** and report it. Only that produces numbers that may support
+   a claim.
+4. **Declare the wall-clock ceiling**, which still does not exist.
 
 ## Known open design questions
 
-- No control has yet returned `TRANSIENT`; the control is on the same 1/T trajectory as
-  everything else and simply has not been given a budget large enough to cross the floor.
-- The margin floor of 0.01 nats, not seed noise, is what decides every verdict here. Under a
-  1/T decay nothing is ever exactly zero, so `TRANSIENT` is a statement about budget against
-  floor. That is defensible but should be said out loud in any write-up.
+- The t-interval on `alpha` is a normality assumption at five seeds and is this design's
+  weakest inference. Declared in Section 5.3; the primary contrast does not depend on it.
+- Three rungs is the minimum for fitting a rate. A fourth would tighten every exponent
+  materially and costs about 24 hours more.
+- The power law is fitted over a 4× budget range and is an extrapolation outside it.
 - The late-arm onset is fixed at `0.5T` by fiat.
-- Whether a window shuffle at the BPE-token level is a lower-level deficit than intended.
+- `drafts/v3-wsd-design.md` (fixed wound, WSD schedule, trunk-branch execution) remains an
+  optional sharpening. Ladder 1 retired the confound that motivated it, so it is no longer
+  a prerequisite for reading a result. Note its name predates this version number.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.

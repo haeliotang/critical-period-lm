@@ -7,12 +7,12 @@ are not authorized, regardless of how the results look.
 
 **Statement.** The deficit-window protocol established for vision networks can be
 instantiated for autoregressive language-model pretraining with an information-preserving
-negative control, a seed-paired baseline, and an endpoint that separates unrepaired damage
-from permanent damage.
+negative control, a seed-paired baseline, and an endpoint that estimates how fast damage
+decays rather than scoring its level at one budget.
 
 **Evidence required.** A completed ladder in which every run shares one configuration apart
-from its budget, the negative control's damage decays away, and the frozen decision code
-returns a verdict without manual intervention.
+from its budget, every deficit seed has a baseline partner, the control's exponent interval
+covers 1, and the frozen decision code returns a verdict without manual intervention.
 
 **Maximum scope.** Methodological. The protocol is instantiable and its controls behave.
 
@@ -22,14 +22,14 @@ instrument, not the finding.
 ## Claim C1: onset-dependent permanent damage, or its absence
 
 **Statement.** At this model scale and corpus, the gap left by a window-shuffle deficit
-applied early in pretraining survives increases in the training budget, and survives them
-more than the same deficit applied later — or it does not, at a stated resolution and up to
-a stated top budget.
+applied early in pretraining decays with training budget at an exponent measurably below the
+pure-lag rate, and below the exponent of the same deficit applied later — or it does not, at
+a stated resolution and up to a stated top budget.
 
-**Evidence required.** The full Section 5.4 conjunction of `preregistration.md`, including
-a recovered negative control and a rejected primary permutation test in the registered
-direction, with `Δ_primary` at or above the registered margin. For the negative form: a
-non-rejecting primary test whose minimum detectable effect is at or below the margin.
+**Evidence required.** The full Section 5.7 conjunction of `preregistration.md`: a control
+reading `LAG` or `NO_EFFECT`, a rejected one-sided permutation test in the critical-period
+direction, and an exponent difference at or above the registered margin. For the negative
+form: a non-rejecting two-sided test with the difference below the margin.
 
 **Maximum scope.** One architecture, one corpus, one budget, one deficit pair, one recovery
 multiplier, one learning-rate schedule, single-digit seed counts.
@@ -50,8 +50,10 @@ absent effect under one schedule does not rule one out under another.
 information only because Deficit F — the same operation on the same tokens, differing only
 in that its permutation is fixed and therefore invertible — does not scar.
 
-**Evidence required.** The registered `fixed_early` ladder returns `TRANSIENT` or
-`NO_EFFECT` — its gap decays to below the margin as the budget grows.
+**Evidence required.** The registered `fixed_early` control reads `LAG` — its exponent
+interval covers 1 — or `NO_EFFECT`. The control is the condition the design predicts is a
+pure lag, so if its own exponent departs from 1 the measurement is producing the departure
+and nothing else can be read from one.
 
 **Maximum scope.** Rules out the compute-loss explanation and the
 any-early-perturbation-scars explanation, for these two deficits.
@@ -66,16 +68,15 @@ in prose before pilot 2 measured it.
 **Statement.** If no onset effect is detected, the study establishes that any such effect is
 smaller than the reported minimum detectable effect at this scale and budget.
 
-**Evidence required.** A reported minimum detectable effect alongside the non-rejection, and
-an explicit `calibrated null (underpowered)` label wherever that quantity exceeds the
-registered margin.
+**Evidence required.** The non-rejecting two-sided test reported together with the exponent
+margin it was weighed against, and with the per-seed exponents that produced it.
 
-**Maximum scope.** An upper bound on effect size under these conditions, at budgets up to
-the top rung. `PERSISTENT` means survived this ladder; it never means permanent, and every
-report of it carries the top budget it survived.
+**Maximum scope.** An upper bound on the exponent difference under these conditions, over
+the budget range the ladder spans. An exponent is fitted on three rungs; it describes decay
+within that range and is an extrapolation outside it.
 
 **Forbidden extension.** "Language models have no critical periods." Absence of evidence at
-n=4 per cell is a resolution statement, not an existence statement.
+five seeds per arm is a resolution statement, not an existence statement.
 
 **Relation to the existing null.** Constantinescu et al. (TACL 2024) found no critical
 period for delayed second-language exposure. A null here would be a second null in a
@@ -83,6 +84,28 @@ different paradigm — degraded input during an early window rather than delayed
 new material — which is worth reporting precisely because the paradigms are different. It
 would not combine with theirs into a general claim, and the two nulls together still would
 not cover the space.
+
+## Claim C4: a reverse onset effect, if found, is a finding and not a critical period
+
+**Statement.** If late damage decays measurably more slowly than early damage, onset matters
+in the direction opposite to every critical-period account.
+
+**Evidence required.** A rejected two-sided permutation test with the exponent difference at
+or above the registered margin, and a control reading `LAG`.
+
+**Maximum scope.** A description of these two onsets at this scale. The mechanism is not
+identified and no mechanism is claimed.
+
+**Forbidden extension.** That late training is more fragile than early training in general,
+or that this reverses the vision literature. It is one contrast, at one scale, under one
+schedule.
+
+**Provenance, stated plainly.** This verdict was added to the register *after* ladder 1
+pointed at the pattern. The exploratory data motivated giving it a name; it did not supply
+evidence for it, and the registered study is what would. Without a name for it the design
+would have absorbed the most interesting thing in its own data into a null, which is the
+failure this register exists to prevent — but the ordering is recorded so a reader can
+discount it as they see fit.
 
 ## Explicit non-claims
 
@@ -98,7 +121,9 @@ This study cannot establish:
 - that the representational (CKA) measures identify a mechanism; they are descriptive;
 - that the TinyStories corpus is representative of natural language;
 - that MLX, this hardware, or this implementation is free of common-mode error;
-- that a gap surviving the top rung would survive a budget an order of magnitude larger.
+- that a gap surviving the top rung would survive a budget an order of magnitude larger;
+- that the fitted power law holds outside the budget range the ladder spans;
+- that `alpha = 1` proves a pure lag rather than failing to distinguish one.
 
 ## Provenance note
 

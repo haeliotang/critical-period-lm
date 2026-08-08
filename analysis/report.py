@@ -67,9 +67,43 @@ def format_report(result, records: list[RunRecord], raw: list[dict], exploratory
     lines += [f"**Verdict:** `{result.verdict}`", "", "## Basis", ""]
     lines += [f"- {reason}" for reason in result.reasons] or ["- no reasons recorded"]
 
-    if math.isnan(result.margin):
+    if math.isnan(result.level_margin):
         lines += ["", "The ladder did not reach the point where a margin could be computed."]
         return "\n".join(lines) + "\n"
+
+    lines += [
+        "",
+        "## How the damage decays",
+        "",
+        "Gap to baseline, paired by seed, fitted as `gap(T) = c / T^alpha`. The exponent is",
+        "the answer: **1 means the gap falls exactly as fast as the lost training explains**",
+        "(repairable damage, nothing left over), **0 means it does not move at all**, and",
+        "anything between means something outlasts the training it cost. Each seed is fitted",
+        "separately and the interval is across seeds.",
+        "",
+        "| Condition | " + " | ".join(f"{b:,}" for b in result.fits[0].budgets)
+        + " | alpha | 95% interval | reading |",
+        "| --- |" + " --- |" * (len(result.fits[0].budgets) + 3),
+    ]
+    for fit in result.fits:
+        gaps = " | ".join(f"{g:+.4f}" for g in fit.mean_gaps)
+        if math.isnan(fit.alpha):
+            lines.append(f"| `{fit.condition}` | {gaps} | — | — | {fit.reading} |")
+        else:
+            lines.append(
+                f"| `{fit.condition}` | {gaps} | {fit.alpha:.3f} | "
+                f"[{fit.alpha_low:.3f}, {fit.alpha_high:.3f}] | {fit.label} |"
+            )
+
+    lines += ["", "### Budget at which each gap reaches the level floor", ""]
+    for fit in result.fits:
+        if math.isfinite(fit.crossing_budget):
+            lines.append(
+                f"- `{fit.condition}`: about {fit.crossing_budget:,.0f} steps "
+                f"(extrapolated from the fitted power law)"
+            )
+        else:
+            lines.append(f"- `{fit.condition}`: never, on the fitted law")
 
     lines += [
         "",
@@ -77,32 +111,31 @@ def format_report(result, records: list[RunRecord], raw: list[dict], exploratory
         "",
         f"- Top budget: {result.top_budget:,} steps",
         f"- Baseline seed SD at the top budget: {result.baseline_sd:.4f}",
-        f"- Registered margin: {result.margin:.4f} (max of 3 x SD and the 0.01 floor)",
+        f"- Level floor (is there damage to model): {result.level_margin:.4f} nats",
+        f"- Exponent margin (from the control's own seed spread): "
+        f"{result.exponent_margin:.3f}",
         "",
-        "## Does the damage decay?",
+        "## Primary contrast: does onset change the decay rate?",
         "",
-        "Gap to baseline, paired by seed, by budget. A gap that shrinks as the budget grows",
-        "is unfinished recovery; one that stays put survived every budget increase applied.",
+        "A critical period predicts early damage is the harder to repair, so it should decay",
+        "*more slowly*: `alpha_early < alpha_late`. The one-sided test is that prediction.",
+        "The two-sided test exists so that an onset effect running the other way is reported",
+        "rather than absorbed into a null.",
         "",
-        "| Condition | " + " | ".join(f"{b:,}" for b in result.ladders[0].budgets)
-        + " | slope | p | verdict |",
-        "| --- |" + " --- |" * (len(result.ladders[0].budgets) + 3),
+        f"- alpha(early) − alpha(late): {result.primary_delta:+.3f}",
+        f"- One-sided p, critical-period direction: {result.primary_p_one_sided:.4f}",
+        f"- Two-sided p, onset matters either way: {result.primary_p_two_sided:.4f}",
+        "",
+        "## Per-seed exponents",
+        "",
+        "| Condition | seeds fitted | seeds dropped | per-seed alpha |",
+        "| --- | --- | --- | --- |",
     ]
-    for ladder in result.ladders:
-        gaps = " | ".join(f"{g:+.4f}" for g in ladder.mean_gaps)
+    for fit in result.fits:
+        per = ", ".join(f"{a:.3f}" for a in fit.per_seed_alpha) or "—"
         lines.append(
-            f"| `{ladder.condition}` | {gaps} | {ladder.slope:+.4f} | "
-            f"{ladder.slope_p:.4f} | {ladder.label} |"
+            f"| `{fit.condition}` | {fit.seeds_fitted} | {fit.seeds_dropped} | {per} |"
         )
-
-    lines += [
-        "",
-        "## Primary contrast, at the top budget",
-        "",
-        f"- Delta (early minus late): {result.primary_delta:+.4f} nats/token",
-        f"- Exact permutation p: {result.primary_p_value:.4f}",
-        f"- Minimum detectable effect: {result.primary_mde:.4f}",
-    ]
 
     # Section 5.1 requires dropped runs to be reported. A deficit run with no baseline
     # partner at its own budget and seed contributes no gap, and saying so is the only way

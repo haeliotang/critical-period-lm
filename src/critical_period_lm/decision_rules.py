@@ -4,31 +4,33 @@ This module is part of the freeze corpus. Once `freeze-manifest.json` is tagged,
 change here invalidates the freeze and requires a new design version.
 
 Everything here is a pure function over run records. Nothing reads the filesystem, nothing
-touches a model, and nothing is random: the tests are exact enumerations, so a verdict is
-reproducible from the records alone.
+touches a model, and nothing is random.
 
-## The endpoint is a decay, not a level
+## The endpoint estimates a decay law
 
-Design versions up to v1.3 scored damage as the loss difference at the end of one training
-budget. The budget-doubling diagnostic showed that endpoint cannot do its job: at 5,400
-steps the late-arm gap was 0.0370 and at 10,800 it was 0.0213, a fall of 42% on a single
-doubling. A difference that shrinks when you train longer is unrepaired damage, not
-permanent damage, and annealing the learning rate to zero merely freezes it in place at
-whatever budget the run happened to stop at.
+The study reports **how damage decays with training budget**, not a categorical verdict at
+one budget. For each condition the gap to a seed-matched baseline is fitted as
 
-So the registered question — can later training repair the damage — is asked directly:
-**does the gap to baseline go to zero as the training budget grows?** Each condition is run
-at a ladder of budgets, the gap is paired against the baseline seed by seed, and the
-registered statistic is the slope of that gap against log budget.
+    gap(T) = c / T^alpha
 
-Sample sizes are 3 to 5 runs per cell, so normal-theory tests are not defensible and every
-comparison here is an exact permutation test. Two different exchangeability arguments are
-used, and they are not interchangeable:
+and `alpha` is the registered quantity. It has a reading that does not depend on any
+threshold we chose:
 
-- comparing two conditions at one budget permutes the condition labels;
-- testing decay across budgets permutes the budget labels over the observed gaps. A paired
-  sign-flip test was considered and rejected: at three seeds it enumerates 2^3 = 8 sign
-  assignments, so its smallest attainable p-value is 0.125 and it can never reject at 0.05.
+    alpha = 1  the gap falls as 1/T -- exactly what a pure lag predicts, damage that is
+               nothing but training time not yet made up
+    alpha = 0  the gap does not move -- permanent damage
+    0 < alpha < 1  decays, but more slowly than lost training would explain
+
+Two earlier endpoints failed and both failures are recorded in `deviations/`. A level at one
+budget could not tell a scar from unfinished recovery. A categorical ladder verdict fixed
+that but made every answer hinge on an arbitrary 0.01-nat floor, and it went blind exactly
+where the conditions converged in level: in ladder 1 the top-rung contrast was +0.0003 nats
+at p = 0.50 while the decay exponents differed by 0.276. The level had lost the difference
+that the rate still held.
+
+Seeds are the replication unit: each seed gives one independent fit, and inference is across
+seeds. The interval on `alpha` is a t-interval, which is a normality assumption at four or
+five seeds. That is this design's weakest link and it is declared rather than buried.
 """
 
 from __future__ import annotations
@@ -41,41 +43,55 @@ from statistics import fmean, stdev
 # --- Registered constants. Frozen. -------------------------------------------------
 
 ALPHA = 0.05
-MARGIN_SD_MULTIPLE = 3.0
-MARGIN_FLOOR_NATS = 0.01
+
+# Level floor, used only to decide whether a condition did any damage worth modelling.
+# It no longer decides any verdict, which is the point of moving to an estimate.
+LEVEL_MARGIN_SD_MULTIPLE = 3.0
+LEVEL_MARGIN_FLOOR_NATS = 0.01
+
+# Smallest difference in decay exponent the study is willing to call real. Self-calibrating:
+# three times the control's own seed spread, floored. The control is the natural noise
+# reference because it is the condition whose exponent the design predicts is exactly 1.
+EXPONENT_MARGIN_SD_MULTIPLE = 3.0
+EXPONENT_MARGIN_FLOOR = 0.10
+
+PURE_LAG_EXPONENT = 1.0
 
 BASELINE = "baseline"
 PRIMARY_EARLY = "shuffle_early_N4"
 PRIMARY_LATE = "shuffle_late_N4"
 NEGATIVE_CONTROL_PREFIX = "fixed_early_"
 
-# Enumerating budget-label assignments is exact up to this many; beyond it the enumeration
-# is truncated deterministically rather than sampled, so a verdict never depends on a draw.
-MAX_ENUMERATED_ASSIGNMENTS = 200_000
-
-# Per-condition ladder verdicts.
-TRANSIENT = "TRANSIENT"
+# Per-condition readings of the fitted exponent.
+LAG = "LAG"
+SUBLINEAR = "SUBLINEAR"
 PERSISTENT = "PERSISTENT"
-DECAYING_UNRESOLVED = "DECAYING_UNRESOLVED"
 NO_EFFECT = "NO_EFFECT"
 UNDETERMINED = "UNDETERMINED"
 
 # Study verdicts.
 CRITICAL_PERIOD = "CRITICAL_PERIOD"
 NO_CRITICAL_PERIOD = "NO_CRITICAL_PERIOD"
+REVERSE_ONSET_EFFECT = "REVERSE_ONSET_EFFECT"
 DESIGN_FAILURE = "DESIGN_FAILURE"
 INCONCLUSIVE = "INCONCLUSIVE"
 
-_MDE_SEARCH_CEILING = 10.0
-_MDE_TOLERANCE = 1e-4
+# Two-sided 95% t critical values by degrees of freedom. Tabulated rather than computed so
+# that the frozen module carries no dependency; beyond the table the normal value is used.
+_T_CRITICAL = {
+    1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365,
+    8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145,
+    15: 2.131, 16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
+}
+_Z_CRITICAL = 1.960
 
 
 @dataclass(frozen=True)
 class RunRecord:
     """One completed training run. Produced by the trainer, never edited by analysis.
 
-    `total_steps` is the budget rung. Under the ladder endpoint it is a treatment variable,
-    not a constant to be checked for equality across the grid.
+    `total_steps` is the budget rung. Under a decay endpoint it is the independent variable,
+    not a constant to be checked for equality.
     """
 
     condition: str
@@ -85,169 +101,135 @@ class RunRecord:
 
 
 @dataclass(frozen=True)
-class LadderResult:
+class DecayFit:
     condition: str
     budgets: tuple[int, ...]
     mean_gaps: tuple[float, ...]
-    slope: float
-    slope_p: float
+    seeds_fitted: int
+    seeds_dropped: int
+    alpha: float
+    alpha_low: float
+    alpha_high: float
+    per_seed_alpha: tuple[float, ...]
     top_gap: float
-    margin: float
     crossing_budget: float
-    verdict: str
+    reading: str
 
     @property
     def label(self) -> str:
-        if self.verdict == DECAYING_UNRESOLVED and math.isfinite(self.crossing_budget):
-            return f"{self.verdict} (reaches the margin near {self.crossing_budget:,.0f} steps)"
-        return self.verdict
+        if self.reading == LAG:
+            return "LAG (consistent with pure lost training)"
+        if self.reading == SUBLINEAR:
+            return "SUBLINEAR (decays, but slower than lost training explains)"
+        return self.reading
 
 
 @dataclass(frozen=True)
 class StudyResult:
     verdict: str
     reasons: tuple[str, ...]
-    margin: float
+    level_margin: float
+    exponent_margin: float
     baseline_sd: float
     top_budget: int
     primary_delta: float
-    primary_p_value: float
-    primary_mde: float
-    ladders: tuple[LadderResult, ...]
+    primary_p_one_sided: float
+    primary_p_two_sided: float
+    fits: tuple[DecayFit, ...]
 
 
-# --- Permutation machinery ---------------------------------------------------------
+# --- Primitives --------------------------------------------------------------------
 
 
-def exact_permutation_p(treatment: list[float], reference: list[float]) -> float:
-    """One-sided exact permutation p-value for mean(treatment) > mean(reference).
+def exact_permutation_p(
+    treatment: list[float], reference: list[float], two_sided: bool = False
+) -> float:
+    """Exact permutation p-value for a difference in means.
 
-    Enumerates every way of splitting the pooled values into groups of the observed sizes
-    and counts the fraction whose mean difference is at least the observed one. The
-    observed assignment is included in the count, so the p-value can never be zero.
+    One-sided by default, for `mean(treatment) > mean(reference)`. Enumerates every split of
+    the pooled values into groups of the observed sizes; the observed assignment is counted,
+    so the p-value is never zero.
     """
     if len(treatment) < 2 or len(reference) < 2:
-        raise ValueError("each group needs at least two runs")
+        raise ValueError("each group needs at least two seeds")
 
     pooled = list(treatment) + list(reference)
     observed = fmean(treatment) - fmean(reference)
     pooled_sum = math.fsum(pooled)
     k, m = len(treatment), len(reference)
 
-    total = at_least = 0
+    total = extreme = 0
     for idx in combinations(range(len(pooled)), k):
         left = math.fsum(pooled[i] for i in idx)
+        statistic = left / k - (pooled_sum - left) / m
         total += 1
-        if left / k - (pooled_sum - left) / m >= observed - 1e-12:
-            at_least += 1
-    return at_least / total
+        if two_sided:
+            if abs(statistic) >= abs(observed) - 1e-12:
+                extreme += 1
+        elif statistic >= observed - 1e-12:
+            extreme += 1
+    return extreme / total
 
 
-def _budget_label_assignments(counts: list[int], size: int):
-    """Every distinct way of dealing budget labels with the observed multiplicities."""
+def t_interval(values: list[float]) -> tuple[float, float, float]:
+    """Mean and two-sided 95% t-interval. Returns (mean, low, high).
 
-    def walk(remaining: tuple[int, ...], slots: tuple[int, ...]):
-        if not remaining:
-            yield ()
-            return
-        first, rest = remaining[0], remaining[1:]
-        for chosen in combinations(slots, first):
-            leftover = tuple(s for s in slots if s not in chosen)
-            for tail in walk(rest, leftover):
-                yield (chosen,) + tail
-
-    yield from walk(tuple(counts), tuple(range(size)))
-
-
-def decay_slope_test(budgets: list[int], gaps: list[float]) -> tuple[float, float]:
-    """Slope of gap against log2(budget), with a one-sided p-value for a negative slope.
-
-    The null is that budget is unrelated to gap, so budget labels are exchangeable over the
-    observed gaps. Because permuting labels leaves the budget multiset — and therefore the
-    mean and spread of the x values — unchanged, the slope is a monotone function of the
-    cross-product `sum(x_i * y_i)`, which is what the enumeration compares.
-
-    A negative slope means the gap shrinks as the budget grows: the damage is being
-    repaired, and what looked permanent was unfinished recovery.
+    A normality assumption at the seed counts this study can afford. Declared in the module
+    docstring and in `preregistration.md`; it is not disguised as an exact procedure.
     """
-    if len(set(budgets)) < 2:
-        raise ValueError("a decay test needs at least two budget rungs")
-    if len(budgets) != len(gaps):
-        raise ValueError("budgets and gaps must be parallel")
-
-    xs = [math.log2(b) for b in budgets]
-    x_mean, y_mean = fmean(xs), fmean(gaps)
-    denominator = math.fsum((x - x_mean) ** 2 for x in xs)
-    slope = math.fsum((x - x_mean) * (y - y_mean) for x, y in zip(xs, gaps)) / denominator
-
-    distinct = sorted(set(xs))
-    counts = [xs.count(value) for value in distinct]
-    observed = math.fsum(x * y for x, y in zip(xs, gaps))
-
-    total = at_most = 0
-    for assignment in _budget_label_assignments(counts, len(xs)):
-        statistic = 0.0
-        for value, slots in zip(distinct, assignment):
-            statistic += value * math.fsum(gaps[s] for s in slots)
-        total += 1
-        if statistic <= observed + 1e-12:
-            at_most += 1
-        if total >= MAX_ENUMERATED_ASSIGNMENTS:
-            break
-
-    return slope, at_most / total
+    n = len(values)
+    if n < 2:
+        return (values[0] if values else math.nan, -math.inf, math.inf)
+    mean = fmean(values)
+    spread = stdev(values)
+    critical = _T_CRITICAL.get(n - 1, _Z_CRITICAL)
+    half = critical * spread / math.sqrt(n)
+    return mean, mean - half, mean + half
 
 
-def registered_margin(baseline_losses: list[float]) -> float:
-    """The smallest difference this study is willing to call real.
-
-    Three baseline seed standard deviations, floored at an absolute value so that an
-    unusually tight baseline cannot let a scientifically empty difference through.
-    """
+def level_margin(baseline_losses: list[float]) -> float:
+    """Smallest gap worth modelling at all. Three baseline seed SDs, floored."""
     if len(baseline_losses) < 2:
         raise ValueError("margin needs at least two baseline seeds")
-    return max(MARGIN_SD_MULTIPLE * stdev(baseline_losses), MARGIN_FLOOR_NATS)
+    return max(LEVEL_MARGIN_SD_MULTIPLE * stdev(baseline_losses), LEVEL_MARGIN_FLOOR_NATS)
 
 
-def _p_at_shift(treatment: list[float], reference: list[float], shift: float) -> float:
-    return exact_permutation_p([x + shift for x in treatment], reference)
+def fit_exponent(budgets: list[int], gaps: list[float]) -> float:
+    """Decay exponent from one seed: slope of -log(gap) against log(budget).
 
-
-def minimum_detectable_effect(
-    treatment: list[float], reference: list[float], margin: float
-) -> float:
-    """Smallest true difference this comparison could have flagged.
-
-    Shift the treatment values uniformly by `c` and ask for the smallest `c` at which the
-    registered test rejects; the corresponding difference is `observed_delta + c`, floored
-    at the margin. `c` may be negative: a comparison that already rejects could have
-    detected something smaller than what it saw, and reporting its observed difference as
-    its resolution would overstate how blunt the instrument is.
-
-    Returns infinity when no shift reaches significance — the honest answer for a
-    comparison too small to reject under any effect size.
+    Requires strictly positive gaps. A non-positive gap means the deficit run beat its own
+    baseline at that rung, which is noise around zero rather than decay, and the seed is
+    reported as dropped rather than nudged into the logarithm.
     """
-    if _p_at_shift(treatment, reference, 0.0) <= ALPHA:
-        low, high = -1.0, 0.0
-        while _p_at_shift(treatment, reference, low) <= ALPHA:
-            high, low = low, low * 2
-            if low < -_MDE_SEARCH_CEILING:
-                break
-    else:
-        low, high = 0.0, 1.0
-        while _p_at_shift(treatment, reference, high) > ALPHA:
-            low, high = high, high * 2
-            if high > _MDE_SEARCH_CEILING:
-                return math.inf
+    if len(budgets) < 2:
+        raise ValueError("an exponent needs at least two budget rungs")
+    if any(g <= 0 for g in gaps):
+        raise ValueError("exponent fitting requires strictly positive gaps")
 
-    while high - low > _MDE_TOLERANCE:
-        mid = (low + high) / 2
-        if _p_at_shift(treatment, reference, mid) <= ALPHA:
-            high = mid
-        else:
-            low = mid
+    xs = [math.log(b) for b in budgets]
+    ys = [math.log(g) for g in gaps]
+    x_mean, y_mean = fmean(xs), fmean(ys)
+    denominator = math.fsum((x - x_mean) ** 2 for x in xs)
+    return -math.fsum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys)) / denominator
 
-    return max(fmean(treatment) - fmean(reference) + high, margin)
+
+def crossing_budget(budgets: list[int], gaps: list[float], target: float) -> float:
+    """Budget at which the fitted power law reaches `target`.
+
+    Computed from the power law rather than from a line in log-budget. The earlier
+    log-linear form predicted negative gaps one rung beyond the data and understated this
+    quantity roughly twofold; it was the wrong functional form, not merely an imprecise one.
+    """
+    try:
+        alpha = fit_exponent(budgets, gaps)
+    except ValueError:
+        return math.inf
+    if alpha <= 0:
+        return math.inf
+    xs = [math.log(b) for b in budgets]
+    ys = [math.log(g) for g in gaps]
+    log_c = fmean(ys) + alpha * fmean(xs)
+    return math.exp((log_c - math.log(target)) / alpha)
 
 
 # --- Ladder analysis ---------------------------------------------------------------
@@ -256,10 +238,9 @@ def minimum_detectable_effect(
 def paired_gaps(records: list[RunRecord]) -> dict[str, dict[int, dict[int, float]]]:
     """Gap to the baseline, paired within budget and seed.
 
-    Pairing matters: a seed fixes both the initialization and the data order, so the paired
-    difference removes a variance component that an unpaired comparison would carry. A
-    deficit run with no baseline at the same budget and seed has no gap and is dropped from
-    the ladder — which is reported, never silent.
+    A seed fixes the initialization and the data order, so pairing removes a variance
+    component an unpaired comparison would carry. A deficit run with no baseline partner at
+    the same budget and seed has no gap and is dropped — reported, never silent.
     """
     losses: dict[str, dict[int, dict[int, float]]] = {}
     for record in records:
@@ -281,68 +262,73 @@ def paired_gaps(records: list[RunRecord]) -> dict[str, dict[int, dict[int, float
     return gaps
 
 
-def ladder_verdict(
-    condition: str, gaps_by_budget: dict[int, dict[int, float]], margin: float
-) -> LadderResult:
-    """Does this condition's damage go away when the budget grows?
+def fit_condition(
+    condition: str, gaps_by_budget: dict[int, dict[int, float]], level: float
+) -> DecayFit:
+    """Estimate the decay exponent for one condition, seeds as the replication unit.
 
-    Four outcomes, and the two in the middle are the ones that matter:
+    Readings, from the interval on `alpha`:
 
-    - `TRANSIENT` — the gap shrinks with budget and is already under the margin at the top
-      rung. Later training repaired the damage.
-    - `PERSISTENT` — no detectable shrinkage and the gap is still over the margin. The
-      damage survived every budget increase this ladder applied.
-    - `DECAYING_UNRESOLVED` — shrinking but not yet under the margin. Reported with the
-      budget at which the fitted line would cross, which is an extrapolation and is labelled
-      as one.
-    - `NO_EFFECT` — under the margin throughout; there was nothing to repair.
+    - `NO_EFFECT` — the top-rung gap is under the level floor; there was no damage to model,
+      and fitting a decay to noise would invent a number.
+    - `LAG` — the interval covers 1 and excludes 0. The gap falls as fast as lost training
+      alone would explain: repairable damage, nothing left over.
+    - `SUBLINEAR` — the interval lies entirely below 1 and above 0. It decays, but more
+      slowly than a pure lag, so something outlasts the training it cost.
+    - `PERSISTENT` — the interval covers 0. No detectable decay.
+    - `UNDETERMINED` — the interval spans both 0 and 1 and settles nothing.
     """
     budgets = sorted(gaps_by_budget)
-    flat_budgets = [b for b in budgets for _ in gaps_by_budget[b]]
-    flat_gaps = [g for b in budgets for g in gaps_by_budget[b].values()]
     mean_gaps = tuple(fmean(gaps_by_budget[b].values()) for b in budgets)
-    top_gap = mean_gaps[-1]
+    top_gap = mean_gaps[-1] if mean_gaps else math.nan
 
-    if len(budgets) < 2 or len(flat_gaps) < 3:
-        return LadderResult(
-            condition, tuple(budgets), mean_gaps, math.nan, math.nan, top_gap,
-            margin, math.inf, UNDETERMINED,
+    seeds = set.intersection(*(set(gaps_by_budget[b]) for b in budgets)) if budgets else set()
+    per_seed: list[float] = []
+    dropped = 0
+    for seed in sorted(seeds):
+        values = [gaps_by_budget[b][seed] for b in budgets]
+        try:
+            per_seed.append(fit_exponent(budgets, values))
+        except ValueError:
+            dropped += 1
+
+    def result(alpha, low, high, reading, crossing=math.inf):
+        return DecayFit(
+            condition, tuple(budgets), mean_gaps, len(per_seed), dropped,
+            alpha, low, high, tuple(per_seed), top_gap, crossing, reading,
         )
 
-    slope, slope_p = decay_slope_test(flat_budgets, flat_gaps)
-    decaying = slope < 0 and slope_p <= ALPHA
-    residual = top_gap >= margin
+    if len(budgets) < 2 or len(per_seed) < 2:
+        return result(math.nan, math.nan, math.nan, UNDETERMINED)
+    if top_gap < level:
+        return result(math.nan, math.nan, math.nan, NO_EFFECT)
 
-    crossing = math.inf
-    if decaying and residual:
-        # gap = intercept + slope * log2(budget); solve for gap == margin.
-        xs = [math.log2(b) for b in flat_budgets]
-        intercept = fmean(flat_gaps) - slope * fmean(xs)
-        crossing = 2 ** ((margin - intercept) / slope)
-
-    if decaying and not residual:
-        verdict = TRANSIENT
-    elif decaying:
-        verdict = DECAYING_UNRESOLVED
-    elif residual:
-        verdict = PERSISTENT
-    else:
-        verdict = NO_EFFECT
-
-    return LadderResult(
-        condition, tuple(budgets), mean_gaps, slope, slope_p, top_gap, margin,
-        crossing, verdict,
+    alpha, low, high = t_interval(per_seed)
+    crossing = crossing_budget(
+        budgets, [fmean(gaps_by_budget[b].values()) for b in budgets], level
     )
+
+    if low <= 0:
+        reading = PERSISTENT if high < PURE_LAG_EXPONENT else UNDETERMINED
+    elif high < PURE_LAG_EXPONENT:
+        reading = SUBLINEAR
+    elif low <= PURE_LAG_EXPONENT <= high:
+        reading = LAG
+    else:
+        # Interval entirely above 1: decays faster than a pure lag. Not a failure mode the
+        # design predicts, so it is not given a flattering name.
+        reading = UNDETERMINED
+
+    return result(alpha, low, high, reading, crossing)
 
 
 def study_verdict(records: list[RunRecord]) -> StudyResult:
     """Apply the full registered decision procedure to a completed ladder."""
     non_finite = [r for r in records if not math.isfinite(r.final_eval_loss)]
     budgets = sorted({r.total_steps for r in records})
+    top = budgets[-1] if budgets else 0
     baseline_top = [
-        r.final_eval_loss
-        for r in records
-        if r.condition == BASELINE and r.total_steps == (budgets[-1] if budgets else None)
+        r.final_eval_loss for r in records if r.condition == BASELINE and r.total_steps == top
     ]
 
     failures: list[str] = []
@@ -356,97 +342,103 @@ def study_verdict(records: list[RunRecord]) -> StudyResult:
     if len(baseline_top) < 2:
         failures.append("fewer than two baseline runs at the top budget")
 
-    if failures:
+    def failed(reasons, level=math.nan, exponent=math.nan, sd=math.nan, fits=()):
         return StudyResult(
-            DESIGN_FAILURE, tuple(failures), math.nan, math.nan,
-            budgets[-1] if budgets else 0, math.nan, math.nan, math.nan, (),
+            DESIGN_FAILURE, tuple(reasons), level, exponent, sd, top,
+            math.nan, math.nan, math.nan, fits,
         )
 
-    top = budgets[-1]
-    margin = registered_margin(baseline_top)
+    if failures:
+        return failed(failures)
+
+    level = level_margin(baseline_top)
     gaps = paired_gaps(records)
-    ladders = tuple(
-        ladder_verdict(condition, gaps[condition], margin) for condition in sorted(gaps)
+    fits = tuple(fit_condition(c, gaps[c], level) for c in sorted(gaps))
+    by_condition = {fit.condition: fit for fit in fits}
+
+    controls = [f for f in fits if f.condition.startswith(NEGATIVE_CONTROL_PREFIX)]
+    if not controls:
+        return failed(["no negative control present"], level, math.nan, stdev(baseline_top), fits)
+
+    # The control's own seed spread sets the smallest exponent difference worth believing.
+    control_alphas = [a for c in controls for a in c.per_seed_alpha]
+    if len(control_alphas) < 2:
+        return failed(
+            ["the negative control could not be fitted, so no exponent scale exists"],
+            level, math.nan, stdev(baseline_top), fits,
+        )
+    exponent = max(
+        EXPONENT_MARGIN_SD_MULTIPLE * stdev(control_alphas), EXPONENT_MARGIN_FLOOR
     )
-    by_condition = {ladder.condition: ladder for ladder in ladders}
+
+    misbehaving = [c for c in controls if c.reading not in (LAG, NO_EFFECT)]
+    if misbehaving:
+        return failed(
+            [
+                f"negative control {c.condition} read {c.reading} with alpha "
+                f"{c.alpha:.3f} [{c.alpha_low:.3f}, {c.alpha_high:.3f}]: the measurement "
+                f"itself does not behave as a pure lag, so a departure from one elsewhere "
+                f"is not attributable to the deficit"
+                for c in misbehaving
+            ],
+            level, exponent, stdev(baseline_top), fits,
+        )
+
+    early = by_condition.get(PRIMARY_EARLY)
+    late = by_condition.get(PRIMARY_LATE)
+    if early is None or late is None or len(early.per_seed_alpha) < 2 or len(late.per_seed_alpha) < 2:
+        return failed(
+            ["the primary contrast could not be fitted at both onsets"],
+            level, exponent, stdev(baseline_top), fits,
+        )
+
+    early_alphas, late_alphas = list(early.per_seed_alpha), list(late.per_seed_alpha)
+    delta = fmean(early_alphas) - fmean(late_alphas)
+
+    # A critical period predicts early damage is the harder to repair, so its gap decays
+    # more slowly: alpha_early < alpha_late. The primary test is one-sided in that
+    # theory-predicted direction. The two-sided test is secondary and exists so that an
+    # onset effect running the other way is reported rather than absorbed into a null.
+    primary_p = exact_permutation_p(late_alphas, early_alphas)
+    two_sided_p = exact_permutation_p(early_alphas, late_alphas, two_sided=True)
 
     reasons: list[str] = []
-    controls = [
-        ladder for ladder in ladders
-        if ladder.condition.startswith(NEGATIVE_CONTROL_PREFIX)
-    ]
-    broken = [c for c in controls if c.verdict in (PERSISTENT, UNDETERMINED)]
-    if not controls:
-        return StudyResult(
-            DESIGN_FAILURE, ("no negative control ladder present",), margin,
-            stdev(baseline_top), top, math.nan, math.nan, math.nan, ladders,
-        )
-    if broken:
-        return StudyResult(
-            DESIGN_FAILURE,
-            tuple(
-                f"negative control {c.condition} returned {c.verdict}: its damage did not "
-                f"decay away, so a scar elsewhere is not attributable to the deficit type"
-                for c in broken
-            ),
-            margin, stdev(baseline_top), top, math.nan, math.nan, math.nan, ladders,
-        )
+    early_repairable = early.reading in (LAG, NO_EFFECT)
 
-    early = gaps.get(PRIMARY_EARLY, {}).get(top, {})
-    late = gaps.get(PRIMARY_LATE, {}).get(top, {})
-    if len(early) < 2 or len(late) < 2:
-        return StudyResult(
-            DESIGN_FAILURE,
-            ("the primary contrast lacks runs at the top budget",),
-            margin, stdev(baseline_top), top, math.nan, math.nan, math.nan, ladders,
-        )
-
-    early_gaps, late_gaps = list(early.values()), list(late.values())
-    primary_delta = fmean(early_gaps) - fmean(late_gaps)
-    primary_p = exact_permutation_p(early_gaps, late_gaps)
-    primary_mde = minimum_detectable_effect(early_gaps, late_gaps, margin)
-
-    early_ladder = by_condition.get(PRIMARY_EARLY)
-    early_survives = early_ladder is not None and early_ladder.verdict in (
-        PERSISTENT,
-        DECAYING_UNRESOLVED,
-    )
-
-    if early_survives and primary_p <= ALPHA and primary_delta >= margin:
+    if primary_p <= ALPHA and -delta >= exponent:
         verdict = CRITICAL_PERIOD
         reasons.append(
-            f"{PRIMARY_EARLY} returned {early_ladder.verdict} and exceeded {PRIMARY_LATE} "
-            f"at the top budget by {primary_delta:.4f} nats (p {primary_p:.4f})"
+            f"{PRIMARY_EARLY} decayed more slowly than {PRIMARY_LATE} by "
+            f"{-delta:.3f} in exponent (one-sided p {primary_p:.4f})"
         )
-    elif primary_p > ALPHA and primary_mde <= margin:
+    elif two_sided_p <= ALPHA and delta >= exponent:
+        verdict = REVERSE_ONSET_EFFECT
+        reasons.append(
+            f"onset mattered in the direction opposite to a critical period: "
+            f"{PRIMARY_LATE} decayed more slowly than {PRIMARY_EARLY} by {delta:.3f} in "
+            f"exponent (two-sided p {two_sided_p:.4f}). Late damage outlasts early damage, "
+            f"which no critical-period account predicts"
+        )
+    elif two_sided_p > ALPHA and abs(delta) < exponent:
         verdict = NO_CRITICAL_PERIOD
         reasons.append(
-            f"onset made no detectable difference at {top:,} steps (p {primary_p:.4f}) at a "
-            f"resolution (MDE {primary_mde:.4f}) at or below the margin {margin:.4f}"
+            f"onset made no difference to the decay exponent: delta {delta:+.3f} against a "
+            f"margin of {exponent:.3f} (two-sided p {two_sided_p:.4f})"
         )
-        if early_ladder is not None and early_ladder.verdict in (TRANSIENT, NO_EFFECT):
-            reasons.append(
-                f"{PRIMARY_EARLY} returned {early_ladder.verdict}: early damage was "
-                "repaired by later training rather than persisting"
-            )
     else:
         verdict = INCONCLUSIVE
-        if not early_survives and early_ladder is not None:
-            reasons.append(
-                f"{PRIMARY_EARLY} returned {early_ladder.verdict}, so there is no "
-                "persistent early damage for an onset effect to be about"
-            )
-        if primary_p > ALPHA:
-            reasons.append(
-                f"primary contrast did not reject (p {primary_p:.4f}) and its MDE "
-                f"{primary_mde:.4f} exceeds the margin {margin:.4f}"
-            )
-        elif primary_delta < margin:
-            reasons.append(
-                f"primary delta {primary_delta:.4f} is below the margin {margin:.4f}"
-            )
+        reasons.append(
+            f"exponent delta {delta:+.3f} and two-sided p {two_sided_p:.4f} settle neither "
+            f"an onset effect nor its absence against a margin of {exponent:.3f}"
+        )
+
+    if early_repairable and verdict != CRITICAL_PERIOD:
+        reasons.append(
+            f"{PRIMARY_EARLY} read {early.reading}: early damage decays as fast as the "
+            "training it cost, so it is repairable rather than permanent"
+        )
 
     return StudyResult(
-        verdict, tuple(reasons), margin, stdev(baseline_top), top,
-        primary_delta, primary_p, primary_mde, ladders,
+        verdict, tuple(reasons), level, exponent, stdev(baseline_top), top,
+        delta, primary_p, two_sided_p, fits,
     )
