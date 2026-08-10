@@ -16,21 +16,22 @@ import unittest
 
 from critical_period_lm.decision_rules import (
     ALPHA,
+    ANCHOR,
     CRITICAL_PERIOD,
     DESIGN_FAILURE,
+    FASTER_THAN_CONTROL,
     INCONCLUSIVE,
-    LAG,
+    LIKE_CONTROL,
     NO_CRITICAL_PERIOD,
     NO_EFFECT,
-    PERSISTENT,
     REVERSE_ONSET_EFFECT,
-    SUBLINEAR,
-    UNDETERMINED,
+    SLOWER_THAN_CONTROL,
     RunRecord,
-    crossing_budget,
+    baseline_log_slopes,
     exact_permutation_p,
     fit_condition,
     fit_exponent,
+    implied_pure_lag_exponent,
     level_margin,
     paired_gaps,
     study_verdict,
@@ -42,16 +43,21 @@ TOP = BUDGETS[-1]
 
 # Baseline falls with budget, as it does in reality, with a spread that leaves the level
 # margin on its 0.01 floor.
+# The measured shape: the log-slope falls between rungs, which is exactly the fact that
+# makes a theoretical anchor of alpha = 1 wrong.
 BASELINE = {
-    2_700: [2.2844, 2.2962, 2.2893, 2.2900],
-    5_400: [2.0307, 2.0382, 2.0290, 2.0330],
-    10_800: [1.8544, 1.8581, 1.8545, 1.8560],
+    2_700: [2.2844, 2.2962, 2.2893, 2.2900, 2.2945],
+    5_400: [2.0307, 2.0382, 2.0290, 2.0330, 2.0432],
+    10_800: [1.8544, 1.8581, 1.8545, 1.8560, 1.8648],
 }
 
-LAG_ALPHAS = (1.05, 0.98, 1.02, 1.00)
-SUBLINEAR_ALPHAS = (0.55, 0.50, 0.52, 0.48)
-FLAT_ALPHAS = (0.05, 0.02, -0.01, 0.03)
-WILD_ALPHAS = (1.20, 0.10, 0.80, 0.30)
+# Five seeds, as Section 4.3 requires: the two-sided permutation floor is 0.100 at three
+# seeds and 0.008 at five, and the design needs to be able to reject.
+CONTROL_ALPHAS = (1.05, 0.98, 1.02, 1.00, 1.01)
+LIKE_ALPHAS = (1.03, 0.99, 1.01, 1.02, 1.00)
+SLOW_ALPHAS = (0.55, 0.50, 0.52, 0.48, 0.51)
+FAST_ALPHAS = (1.55, 1.50, 1.52, 1.48, 1.51)
+WILD_ALPHAS = (1.20, 0.10, 0.80, 0.30, 1.40)
 
 
 def gaps_for(alphas, top_gap=0.05):
@@ -100,25 +106,6 @@ class ExponentFittingTests(unittest.TestCase):
             fit_exponent([5_400], [0.05])
 
 
-class CrossingBudgetTests(unittest.TestCase):
-    def test_a_pure_lag_crosses_where_the_law_says(self):
-        # gap = 270/T reaches 0.01 at T = 27,000.
-        gaps = [270.0 / b for b in BUDGETS]
-        self.assertAlmostEqual(crossing_budget(list(BUDGETS), gaps, 0.01), 27_000, places=3)
-
-    def test_the_power_law_does_not_reproduce_the_log_linear_defect(self):
-        # Ladder 1's mean late-arm gaps. The retired log-linear form put the crossing near
-        # 14,900 and predicted a negative gap one rung out; the power law puts it past
-        # 20,000 and stays positive everywhere.
-        gaps = [0.0644, 0.0376, 0.0218]
-        crossing = crossing_budget(list(BUDGETS), gaps, 0.01)
-        self.assertGreater(crossing, 20_000)
-        self.assertTrue(math.isfinite(crossing))
-
-    def test_a_frozen_gap_never_crosses(self):
-        self.assertEqual(crossing_budget(list(BUDGETS), [0.05, 0.05, 0.05], 0.01), math.inf)
-
-
 class IntervalTests(unittest.TestCase):
     def test_the_interval_widens_as_seeds_disagree(self):
         _, tight_low, tight_high = t_interval([1.00, 1.01, 0.99, 1.00])
@@ -149,50 +136,96 @@ class PermutationTests(unittest.TestCase):
         self.assertLessEqual(exact_permutation_p(low, high, two_sided=True), ALPHA)
 
 
+class DescriptiveAnchorTests(unittest.TestCase):
+    """The naive anchor is reported, never gated on."""
+
+    def test_the_baseline_log_slope_is_measured_and_falls(self):
+        means = {b: sum(v) / len(v) for b, v in BASELINE.items()}
+        slopes = baseline_log_slopes(means)
+        self.assertEqual(len(slopes), 2)
+        self.assertLess(slopes[1], slopes[0])
+
+    def test_a_falling_slope_puts_the_pure_lag_anchor_above_one(self):
+        # gap = b(T)*delta/T, so a falling b makes a pure lag decay faster than 1/T. This is
+        # why alpha = 1 was the wrong gate; the corrected value is reported, not enforced.
+        means = {b: sum(v) / len(v) for b, v in BASELINE.items()}
+        implied = implied_pure_lag_exponent(baseline_log_slopes(means), BUDGETS)
+        self.assertGreater(implied, 1.0)
+
+
 class ReadingTests(unittest.TestCase):
-    level = 0.01
+    """Readings are taken against the control, not against theory."""
 
-    def _read(self, alphas, top_gap=0.05):
-        gaps = paired_gaps(build_ladder({"c": gaps_for(alphas, top_gap)}))
-        return fit_condition("c", gaps["c"], self.level)
+    def _readings(self, **conditions):
+        result = study_verdict(build_ladder({k: gaps_for(v) for k, v in conditions.items()}))
+        return {f.condition: f.reading for f in result.fits}, result
 
-    def test_decay_at_the_lag_rate_reads_lag(self):
-        fit = self._read(LAG_ALPHAS)
-        self.assertEqual(fit.reading, LAG)
-        self.assertLessEqual(fit.alpha_low, 1.0)
-        self.assertGreaterEqual(fit.alpha_high, 1.0)
-        self.assertIn("pure lost training", fit.label)
+    def test_the_control_is_the_anchor(self):
+        readings, _ = self._readings(
+            fixed_early_N4=CONTROL_ALPHAS,
+            shuffle_early_N4=LIKE_ALPHAS,
+            shuffle_late_N4=LIKE_ALPHAS,
+        )
+        self.assertEqual(readings["fixed_early_N4"], ANCHOR)
 
-    def test_decay_slower_than_a_lag_reads_sublinear(self):
-        fit = self._read(SUBLINEAR_ALPHAS)
-        self.assertEqual(fit.reading, SUBLINEAR)
-        self.assertLess(fit.alpha_high, 1.0)
-        self.assertGreater(fit.alpha_low, 0.0)
+    def test_a_condition_matching_the_control_reads_like_control(self):
+        readings, _ = self._readings(
+            fixed_early_N4=CONTROL_ALPHAS,
+            shuffle_early_N4=LIKE_ALPHAS,
+            shuffle_late_N4=LIKE_ALPHAS,
+        )
+        self.assertEqual(readings["shuffle_early_N4"], LIKE_CONTROL)
 
-    def test_a_gap_that_does_not_move_reads_persistent(self):
-        self.assertEqual(self._read(FLAT_ALPHAS).reading, PERSISTENT)
+    def test_a_condition_repairing_more_slowly_reads_slower(self):
+        readings, _ = self._readings(
+            fixed_early_N4=CONTROL_ALPHAS,
+            shuffle_early_N4=LIKE_ALPHAS,
+            shuffle_late_N4=SLOW_ALPHAS,
+        )
+        self.assertEqual(readings["shuffle_late_N4"], SLOWER_THAN_CONTROL)
 
-    def test_seeds_that_disagree_wildly_settle_nothing(self):
-        self.assertEqual(self._read(WILD_ALPHAS).reading, UNDETERMINED)
+    def test_a_condition_repairing_faster_reads_faster(self):
+        readings, _ = self._readings(
+            fixed_early_N4=CONTROL_ALPHAS,
+            shuffle_early_N4=FAST_ALPHAS,
+            shuffle_late_N4=LIKE_ALPHAS,
+        )
+        self.assertEqual(readings["shuffle_early_N4"], FASTER_THAN_CONTROL)
+
+    def test_a_control_far_from_one_no_longer_fails_the_design(self):
+        # The ladder-2 lesson, pinned. A control at 1.5 is simply the anchor; the design
+        # used to call this a failure because it required the control to sit on alpha = 1.
+        readings, result = self._readings(
+            fixed_early_N4=FAST_ALPHAS,
+            shuffle_early_N4=FAST_ALPHAS,
+            shuffle_late_N4=SLOW_ALPHAS,
+        )
+        self.assertEqual(readings["fixed_early_N4"], ANCHOR)
+        self.assertNotEqual(result.verdict, DESIGN_FAILURE)
 
     def test_damage_under_the_level_floor_is_not_modelled(self):
-        # Fitting a decay law to noise around zero would invent a number.
-        fit = self._read(LAG_ALPHAS, top_gap=0.002)
-        self.assertEqual(fit.reading, NO_EFFECT)
-        self.assertTrue(math.isnan(fit.alpha))
+        records = build_ladder(
+            {
+                "fixed_early_N4": gaps_for(CONTROL_ALPHAS),
+                "shuffle_early_N4": gaps_for(LIKE_ALPHAS, top_gap=0.002),
+                "shuffle_late_N4": gaps_for(LIKE_ALPHAS),
+            }
+        )
+        readings = {f.condition: f.reading for f in study_verdict(records).fits}
+        self.assertEqual(readings["shuffle_early_N4"], NO_EFFECT)
 
     def test_a_seed_whose_gap_goes_non_positive_is_dropped_not_nudged(self):
-        gaps = paired_gaps(build_ladder({"c": gaps_for(LAG_ALPHAS)}))
+        gaps = paired_gaps(build_ladder({"c": gaps_for(CONTROL_ALPHAS)}))
         gaps["c"][TOP][0] = -0.001
-        fit = fit_condition("c", gaps["c"], self.level)
+        fit = fit_condition("c", gaps["c"], 0.01)
         self.assertEqual(fit.seeds_dropped, 1)
-        self.assertEqual(fit.seeds_fitted, len(LAG_ALPHAS) - 1)
+        self.assertEqual(fit.seeds_fitted, len(CONTROL_ALPHAS) - 1)
 
 
 class StudyRehearsalTests(unittest.TestCase):
     """Every verdict the study can return, each against a planted truth."""
 
-    def _verdict(self, early, late, control=LAG_ALPHAS):
+    def _verdict(self, early, late, control=CONTROL_ALPHAS):
         return study_verdict(
             build_ladder(
                 {
@@ -203,57 +236,77 @@ class StudyRehearsalTests(unittest.TestCase):
             )
         )
 
-    def test_early_damage_decaying_more_slowly_is_a_critical_period(self):
-        result = self._verdict(early=SUBLINEAR_ALPHAS, late=LAG_ALPHAS)
+    def test_early_damage_repairing_more_slowly_is_a_critical_period(self):
+        result = self._verdict(early=SLOW_ALPHAS, late=LIKE_ALPHAS)
         self.assertEqual(result.verdict, CRITICAL_PERIOD)
         self.assertLessEqual(result.primary_p_one_sided, ALPHA)
         self.assertLess(result.primary_delta, -result.exponent_margin)
 
-    def test_late_damage_decaying_more_slowly_is_the_reverse_effect(self):
-        # The shape ladder 1 pointed at. It must have a name, or it would be absorbed into
-        # a null and the most interesting thing in the data would go unreported.
-        result = self._verdict(early=LAG_ALPHAS, late=SUBLINEAR_ALPHAS)
+    def test_late_damage_repairing_more_slowly_is_the_reverse_effect(self):
+        # The shape ladders 1 and 2 both pointed at. It must have a name, or it would be
+        # absorbed into a null and the most interesting thing in the data would go unsaid.
+        result = self._verdict(early=LIKE_ALPHAS, late=SLOW_ALPHAS)
         self.assertEqual(result.verdict, REVERSE_ONSET_EFFECT)
         self.assertGreater(result.primary_delta, result.exponent_margin)
         self.assertLessEqual(result.primary_p_two_sided, ALPHA)
         self.assertTrue(any("opposite to a critical period" in r for r in result.reasons))
 
     def test_onset_making_no_difference_is_no_critical_period(self):
-        result = self._verdict(early=LAG_ALPHAS, late=(1.03, 1.00, 0.99, 1.04))
+        result = self._verdict(early=LIKE_ALPHAS, late=(1.02, 1.00, 0.99, 1.03, 1.01))
         self.assertEqual(result.verdict, NO_CRITICAL_PERIOD)
         self.assertLess(abs(result.primary_delta), result.exponent_margin)
-        self.assertTrue(any("repairable rather than permanent" in r for r in result.reasons))
+        self.assertTrue(any("same rate" in r for r in result.reasons))
 
-    def test_a_control_that_is_not_a_pure_lag_is_a_design_failure(self):
-        result = self._verdict(
-            early=SUBLINEAR_ALPHAS, late=LAG_ALPHAS, control=SUBLINEAR_ALPHAS
+    def test_a_missing_control_is_a_design_failure(self):
+        result = study_verdict(
+            build_ladder(
+                {"shuffle_early_N4": gaps_for(LIKE_ALPHAS), "shuffle_late_N4": gaps_for(SLOW_ALPHAS)}
+            )
         )
         self.assertEqual(result.verdict, DESIGN_FAILURE)
-        self.assertTrue(any("does not behave as a pure lag" in r for r in result.reasons))
+        self.assertTrue(any("no usable negative control" in r for r in result.reasons))
 
-    def test_design_failure_outranks_a_planted_critical_period(self):
-        # The control is read before the primary contrast, so a planted effect cannot
-        # rescue a design whose measurement misbehaves.
-        result = self._verdict(early=FLAT_ALPHAS, late=LAG_ALPHAS, control=FLAT_ALPHAS)
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
+    def test_a_control_with_no_damage_cannot_anchor(self):
+        result = self._verdict(
+            early=LIKE_ALPHAS, late=SLOW_ALPHAS, control=CONTROL_ALPHAS
+        )
+        self.assertNotEqual(result.verdict, DESIGN_FAILURE)
+        broken = study_verdict(
+            build_ladder(
+                {
+                    "shuffle_early_N4": gaps_for(LIKE_ALPHAS),
+                    "shuffle_late_N4": gaps_for(SLOW_ALPHAS),
+                    "fixed_early_N4": gaps_for(CONTROL_ALPHAS, top_gap=0.002),
+                }
+            )
+        )
+        self.assertEqual(broken.verdict, DESIGN_FAILURE)
 
     def test_a_difference_too_noisy_to_place_is_inconclusive(self):
-        result = self._verdict(early=(1.20, 0.90, 1.10, 1.00), late=(0.85, 0.75, 0.95, 0.80))
+        result = self._verdict(
+            early=(1.30, 0.90, 1.10, 1.00, 1.35), late=(0.85, 0.75, 1.20, 0.80, 1.15)
+        )
         self.assertEqual(result.verdict, INCONCLUSIVE)
 
     def test_the_exponent_margin_comes_from_the_control(self):
-        tight = self._verdict(early=LAG_ALPHAS, late=LAG_ALPHAS, control=(1.00, 1.01, 0.99, 1.00))
-        loose = self._verdict(early=LAG_ALPHAS, late=LAG_ALPHAS, control=(1.30, 0.70, 1.20, 0.80))
+        tight = self._verdict(LIKE_ALPHAS, LIKE_ALPHAS, control=(1.00, 1.01, 0.99, 1.00, 1.00))
+        loose = self._verdict(LIKE_ALPHAS, LIKE_ALPHAS, control=(1.30, 0.70, 1.20, 0.80, 1.00))
         self.assertLess(tight.exponent_margin, loose.exponent_margin)
         self.assertGreaterEqual(tight.exponent_margin, 0.10)
+
+    def test_the_naive_anchor_is_reported_but_gates_nothing(self):
+        result = self._verdict(early=LIKE_ALPHAS, late=SLOW_ALPHAS)
+        self.assertEqual(len(result.baseline_log_slopes), len(BUDGETS) - 1)
+        self.assertTrue(math.isfinite(result.implied_pure_lag_exponent))
+        self.assertEqual(result.verdict, REVERSE_ONSET_EFFECT)
 
 
 class MechanicalGateTests(unittest.TestCase):
     def _full(self):
         return {
-            "shuffle_early_N4": gaps_for(LAG_ALPHAS),
-            "shuffle_late_N4": gaps_for(LAG_ALPHAS),
-            "fixed_early_N4": gaps_for(LAG_ALPHAS),
+            "shuffle_early_N4": gaps_for(LIKE_ALPHAS),
+            "shuffle_late_N4": gaps_for(LIKE_ALPHAS),
+            "fixed_early_N4": gaps_for(CONTROL_ALPHAS),
         }
 
     def test_a_single_budget_is_a_design_failure(self):
@@ -268,13 +321,6 @@ class MechanicalGateTests(unittest.TestCase):
         result = study_verdict(records)
         self.assertEqual(result.verdict, DESIGN_FAILURE)
         self.assertTrue(any("non-finite" in r for r in result.reasons))
-
-    def test_a_missing_negative_control_is_a_design_failure(self):
-        gaps = self._full()
-        del gaps["fixed_early_N4"]
-        result = study_verdict(build_ladder(gaps))
-        self.assertEqual(result.verdict, DESIGN_FAILURE)
-        self.assertTrue(any("no negative control" in r for r in result.reasons))
 
 
 class MarginTests(unittest.TestCase):

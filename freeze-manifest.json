@@ -1,0 +1,31 @@
+{
+  "design_version": "v4",
+  "freeze_tag": "cplm-design-v4-frozen",
+  "files": [
+    {
+      "path": "CLAIMS.md",
+      "sha256": "caa8e8eeae95b5f584265903e4b43e97550876c6f0672f4c9d19b4bf85f3553c"
+    },
+    {
+      "path": "preregistration.md",
+      "sha256": "d8b18e415cda96222e442780f03b40472ac7b7774e9f5d552f3ec9af8ab074ca"
+    },
+    {
+      "path": "src/critical_period_lm/decision_rules.py",
+      "sha256": "0dd42ed5566b838e61999851a6cec8d2dadcde6d370165739370f79f7eabc048"
+    },
+    {
+      "path": "src/critical_period_lm/deficits.py",
+      "sha256": "61cd363e0e01d7d44f0eb68f1b8a1ec87cf6feb068a3320f6f9f435c9c7fab82"
+    },
+    {
+      "path": "tests/test_decision_rules.py",
+      "sha256": "7bee88f7d81586586bd35217464d6e58d9ad1de6a65a877ba993979592d467e2"
+    },
+    {
+      "path": "tests/test_deficits.py",
+      "sha256": "040c029228f9dae64323214bb8c6cebb96dd2ed45883294967290b118c2447b5"
+    }
+  ],
+  "corpus_sha256": "3a9d7d673be5c0e4b5b80e456c1904389f31f57f11accf0793c578ec7beb9e20"
+}

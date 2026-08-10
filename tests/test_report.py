@@ -22,19 +22,21 @@ from critical_period_lm.decision_rules import CRITICAL_PERIOD, DESIGN_FAILURE  #
 
 BUDGETS = (2_700, 5_400, 10_800)
 TOP = BUDGETS[-1]
-BASELINE = {2_700: [2.2844, 2.2962, 2.2893], 5_400: [2.0307, 2.0382, 2.0290],
-            10_800: [1.8544, 1.8581, 1.8545]}
-LAG_ALPHAS = (1.05, 0.98, 1.02)
-SLOW_ALPHAS = (0.55, 0.50, 0.52)
+BASELINE = {2_700: [2.2844, 2.2962, 2.2893, 2.2900, 2.2945],
+            5_400: [2.0307, 2.0382, 2.0290, 2.0330, 2.0432],
+            10_800: [1.8544, 1.8581, 1.8545, 1.8560, 1.8648]}
+CONTROL_ALPHAS = (1.05, 0.98, 1.02, 1.00, 1.01)
+SLOW_ALPHAS = (0.55, 0.50, 0.52, 0.48, 0.51)
+LIKE_ALPHAS = (1.03, 0.99, 1.01, 1.02, 1.00)
 
 
 def gaps_for(alphas, top_gap=0.05):
     return {b: [top_gap * (TOP / b) ** a for a in alphas] for b in BUDGETS}
 
 
-# Early damage decaying more slowly than late damage: a planted critical period.
-LADDER = {"shuffle_early_N4": gaps_for(SLOW_ALPHAS), "shuffle_late_N4": gaps_for(LAG_ALPHAS),
-          "fixed_early_N4": gaps_for(LAG_ALPHAS)}
+# Early damage repairing more slowly than late damage: a planted critical period.
+LADDER = {"shuffle_early_N4": gaps_for(SLOW_ALPHAS), "shuffle_late_N4": gaps_for(LIKE_ALPHAS),
+          "fixed_early_N4": gaps_for(CONTROL_ALPHAS)}
 
 
 def write_ladder(directory: Path, gaps=LADDER, baseline=BASELINE) -> None:
@@ -71,7 +73,9 @@ class LoadingTests(unittest.TestCase):
 
     def test_every_record_is_loaded(self):
         records, raw = report.load_runs(self.dir)
-        expected = len(BASELINE) * 3 + sum(len(b) * 3 for b in LADDER.values())
+        expected = sum(len(v) for v in BASELINE.values()) + sum(
+            len(v) for b in LADDER.values() for v in b.values()
+        )
         self.assertEqual(len(records), expected)
         self.assertEqual(len(raw), len(records))
 
@@ -115,7 +119,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("`CRITICAL_PERIOD`", text)
         for condition in LADDER:
             self.assertIn(f"`{condition}`", text)
-        self.assertIn("How the damage decays", text)
+        self.assertIn("How fast is the damage repaired", text)
         self.assertNotIn("EXPLORATORY", text)
 
     def test_every_budget_rung_appears_in_the_decay_table(self):
@@ -144,6 +148,8 @@ class ReportTests(unittest.TestCase):
         self.assertIn("alpha", text)
         self.assertIn("Per-seed exponents", text)
         self.assertIn("does onset change the decay rate", text)
+        self.assertIn("vs control", text)
+        self.assertIn("what a pure lag would have predicted", text)
 
     def test_an_incomplete_ladder_formats_without_crashing(self):
         # One rung is a design failure with a NaN margin; the report must still render,
@@ -179,13 +185,13 @@ class DroppedRunTests(unittest.TestCase):
         # so those runs trained and then contributed nothing.
         write_ladder(self.dir)
         for budget in BUDGETS:
-            run = self.dir / f"shuffle_early_N4-{budget}-3"
+            run = self.dir / f"shuffle_early_N4-{budget}-9"
             run.mkdir()
             (run / "run.json").write_text(
                 json.dumps(
                     {
                         "condition": "shuffle_early_N4",
-                        "seed": 3,
+                        "seed": 9,
                         "final_eval_loss": 1.9,
                         "total_steps": budget,
                         "data_manifest": {"vocab_size": 4096},

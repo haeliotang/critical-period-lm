@@ -1,8 +1,9 @@
 # Preregistration: Critical Learning Periods in Small Language Models
 
-**Design version:** `v3-draft` (not frozen)
-**Status:** pre-calibration, pre-freeze. No training run may be registered against this
-document until the calibration gate in Section 8.1 closes and the freeze tag exists.
+**Design version:** `v4`
+**Status:** frozen. Calibration is complete; ladders 1 and 2 were exploratory and cannot
+support any claim. The registered ladder runs under fresh seeds, for the reason in
+Section 8.4.
 
 ---
 
@@ -80,21 +81,42 @@ and does that rate depend on when the deficit occurred?**
 Each condition is run at a ladder of budgets. The gap to a seed-matched clean baseline is
 fitted as `gap(T) = c / T^alpha`, and `alpha` is the registered quantity.
 
-### 3.2 What the exponent means
+### 3.2 The control is the anchor, and what that costs
 
-`alpha` has a reading that does not depend on any threshold this study chose, which is why
-it replaced two earlier endpoints that did:
+`alpha` is read against the negative control's own exponent, measured in the same
+experiment, and never against a theoretical value.
 
-| `alpha` | Reading |
+The reason is that `alpha` mixes two things. Under a learning curve `loss ≈ a − b·ln(t)`, a
+deficit costing `Δ` effective steps leaves `gap = b(T)·Δ/T`. The `b(T)` factor belongs to
+the baseline curve, not to the deficit. Ladder 2 measured it falling 30% per doubling, so
+the tidy derivation `alpha = 1` — which silently assumes `b` constant — does not hold, and
+the corrected value near 1.3 rests on two slope estimates from three points and is far too
+fragile to put in its place. `b(T)` is common to every condition at a rung, so it cancels
+in a comparison and cancels nowhere else.
+
+### 3.2.1 What this design does not answer
+
+**Whether the damage is a lag or a scar is out of scope.** That is an absolute question and
+answering it requires `Δ_eff`, the cost in effective training steps, estimated across rungs:
+a pure lag is exactly `Δ_eff` constant. Estimating it means inverting the baseline curve,
+and three rungs cannot pin that down — ladder 2 returned 1370, 693, 882 effective steps for
+the control, a non-monotonicity that is an artefact of interpolating between three points.
+
+The question needs a denser ladder and is a larger study. It is **dropped, not answered**,
+and no `alpha` reported here may be used to answer it.
+
+### 3.2.2 What it does answer
+
+Comparative questions, which need no anchor:
+
+| Contrast | Meaning |
 | --- | --- |
-| 1 | the gap falls exactly as fast as the lost training explains — a pure lag, fully repairable |
-| 0 | the gap does not move — permanent damage |
-| between | decays, but something outlasts the training it cost |
+| `alpha(condition) − alpha(control)` | is this deficit repaired at the control's rate? |
+| `alpha(early) − alpha(late)` | does onset change the repair rate? |
 
-The derivation is one line. Under the measured log-shaped learning curve
-`loss ≈ a − b·ln(t)`, a deficit that costs `Δ` effective steps and nothing else leaves a gap
-of `b·Δ/T`, which is `alpha = 1` exactly. Departures from 1 are departures from "it only
-cost time".
+Both are differences of exponents, so both are free of `b(T)`. They are also immune to a
+constant proportional handicap on either arm — the recovery asymmetry that troubled every
+earlier endpoint moves the amplitude `c` and leaves `alpha` alone.
 
 ### 3.3 Directional registered comparison
 
@@ -326,15 +348,20 @@ seed spread is the natural scale for what counts as a real difference in exponen
 
 ### 5.5 Per-condition readings
 
-From the interval on `alpha`, by the frozen rules in `decision_rules.py`:
+Every reading is a comparison with the control, by the frozen rules in `decision_rules.py`:
 
-- **`LAG`** — interval covers 1 and excludes 0. The damage decays as fast as the training it
-  cost: repairable, nothing left over.
-- **`SUBLINEAR`** — interval lies entirely below 1 and above 0. It decays, but something
-  outlasts the training it cost.
-- **`PERSISTENT`** — interval covers 0. No detectable decay.
+- **`ANCHOR`** — the control itself, the reference the others are read against.
+- **`LIKE_CONTROL`** — difference from the control below the exponent margin and not
+  rejected: repaired at the control's rate.
+- **`SLOWER_THAN_CONTROL`** — rejected, and at least a margin below: repaired more slowly
+  than an information-preserving deficit of the same size at the same onset.
+- **`FASTER_THAN_CONTROL`** — rejected, and at least a margin above.
 - **`NO_EFFECT`** — the top-rung gap is under the level floor; there was no damage to model.
-- **`UNDETERMINED`** — the interval settles nothing.
+- **`UNDETERMINED`** — the comparison settles nothing.
+
+The naive anchor `alpha = 1` and the value corrected for the measured baseline slopes are
+both **reported beside every exponent and gate nothing**. They are printed so a reader can
+watch the assumption fail rather than take it on trust.
 
 ### 5.6 Primary contrast
 
@@ -345,14 +372,13 @@ From the interval on `alpha`, by the frozen rules in `decision_rules.py`:
 
 ### 5.7 Study-level verdict
 
-- `CRITICAL_PERIOD` — the control reads `LAG` or `NO_EFFECT`, the one-sided test rejects,
-  and `−Δ ≥` exponent margin.
+- `CRITICAL_PERIOD` — the one-sided test rejects and `−Δ ≥` exponent margin.
 - `REVERSE_ONSET_EFFECT` — the two-sided test rejects with `Δ ≥` exponent margin: late
   damage outlasts early damage, which no critical-period account predicts.
 - `NO_CRITICAL_PERIOD` — the two-sided test does not reject and `|Δ| <` exponent margin.
-- `DESIGN_FAILURE` — the control reads anything but `LAG` or `NO_EFFECT`. If the measurement
-  itself does not behave as a pure lag, a departure from one elsewhere is not attributable
-  to the deficit.
+- `DESIGN_FAILURE` — no usable control. The control anchors every reading, so without a
+  fitted control exponent nothing can be read. **A control far from `alpha = 1` is not a
+  failure**; it is the anchor, and the v3 rule that failed the design for it was wrong.
 - `INCONCLUSIVE` — otherwise.
 
 ### 5.8 Secondary measures
@@ -413,9 +439,10 @@ A judgment rule that has never been run against a known answer is not a register
 Each of these terminates the critical-period claim and is reported as a design failure,
 not as a negative result:
 
-- the `fixed_early` control reads anything but `LAG` or `NO_EFFECT`: if the measurement
-  itself does not behave as a pure lag, a departure from one elsewhere is not attributable
-  to the deficit;
+- no usable `fixed_early` control: fewer than two of its seeds could be fitted, or its
+  damage sits under the level floor. The control anchors every reading, so without a fitted
+  control exponent nothing else can be read. **A control far from `alpha = 1` is not a
+  failure** — it is the anchor, and the v3 rule that failed the design for it was wrong;
 - the baseline does not carry every seed index used by a deficit arm at some rung;
 - baseline seed variance at the top rung is large enough that the margin exceeds the change
   in baseline loss across the ladder, i.e. the instrument cannot resolve anything the extra
@@ -475,7 +502,17 @@ design. What remains here is the calibration obligation it implies: the base bud
 be chosen so that the top rung `4B` is reachable within the declared wall-clock ceiling,
 because a ladder that cannot afford its top rung cannot answer the question.
 
-### 8.3 What calibration may not touch
+### 8.3 The registered ladder uses fresh seeds
+
+Calibration used seeds 0–4. **The registered ladder uses seeds 5–9.**
+
+Reusing the calibration seeds would make the registered run a recomputation rather than a
+replication: same configuration, same seeds, same numbers, and the freeze would be
+ceremonial. The endpoint has been revised four times and every revision was informed by data
+already seen; a genuine out-of-sample replication is the only thing that discharges that,
+and it is what the freeze exists to buy.
+
+### 8.4 What calibration may not touch
 
 The deficit definitions, the condition grid shape, the primary contrast, the decision
 rules, and the claim register. If calibration reveals that one of these is wrong, that is

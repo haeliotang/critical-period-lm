@@ -11,8 +11,8 @@ negative control, a seed-paired baseline, and an endpoint that estimates how fas
 decays rather than scoring its level at one budget.
 
 **Evidence required.** A completed ladder in which every run shares one configuration apart
-from its budget, every deficit seed has a baseline partner, the control's exponent interval
-covers 1, and the frozen decision code returns a verdict without manual intervention.
+from its budget, every deficit seed has a baseline partner, the control's exponent is
+fitted, and the frozen decision code returns a verdict without manual intervention.
 
 **Maximum scope.** Methodological. The protocol is instantiable and its controls behave.
 
@@ -21,15 +21,17 @@ instrument, not the finding.
 
 ## Claim C1: onset-dependent permanent damage, or its absence
 
-**Statement.** At this model scale and corpus, the gap left by a window-shuffle deficit
-applied early in pretraining decays with training budget at an exponent measurably below the
-pure-lag rate, and below the exponent of the same deficit applied later — or it does not, at
-a stated resolution and up to a stated top budget.
+**Statement.** At this model scale and corpus, damage from a window-shuffle deficit applied
+early in pretraining is repaired more slowly than the same deficit applied later — or it is
+not, at a stated resolution and over a stated budget range.
 
-**Evidence required.** The full Section 5.7 conjunction of `preregistration.md`: a control
-reading `LAG` or `NO_EFFECT`, a rejected one-sided permutation test in the critical-period
-direction, and an exponent difference at or above the registered margin. For the negative
-form: a non-rejecting two-sided test with the difference below the margin.
+The claim is **comparative**. It is a difference of decay exponents and carries no statement
+about whether either damage is permanent.
+
+**Evidence required.** The Section 5.7 conjunction of `preregistration.md`: a usable
+control, a rejected one-sided permutation test in the critical-period direction, and an
+exponent difference at or above the registered margin. For the negative form: a
+non-rejecting two-sided test with the difference below the margin.
 
 **Maximum scope.** One architecture, one corpus, one budget, one deficit pair, one recovery
 multiplier, one learning-rate schedule, single-digit seed counts.
@@ -46,14 +48,19 @@ absent effect under one schedule does not rule one out under another.
 
 ## Claim C2: the negative control bounds the interpretation
 
-**Statement.** A scar under Deficit S is attributable to the destruction of order
-information only because Deficit F — the same operation on the same tokens, differing only
-in that its permutation is fixed and therefore invertible — does not scar.
+**Statement.** A difference in repair rate under Deficit S is attributable to the
+destruction of order information only because Deficit F — the same operation on the same
+tokens, differing only in that its permutation is fixed and therefore invertible — is the
+reference it is measured against.
 
-**Evidence required.** The registered `fixed_early` control reads `LAG` — its exponent
-interval covers 1 — or `NO_EFFECT`. The control is the condition the design predicts is a
-pure lag, so if its own exponent departs from 1 the measurement is producing the departure
-and nothing else can be read from one.
+**Evidence required.** A fitted control exponent with at least two seeds and damage above
+the level floor. The control is the anchor, not a hypothesis: its own exponent absorbs
+whatever the measurement does to every condition alike — the baseline curve's shape above
+all — so a difference from it is a difference in the deficit.
+
+**A control far from `alpha = 1` is not a failure.** Design v3 gated on that and was wrong;
+ladder 2 failed a perfectly serviceable control because the theoretical anchor assumed a
+constant learning-curve slope that the same data showed falling 30% per doubling.
 
 **Maximum scope.** Rules out the compute-loss explanation and the
 any-early-perturbation-scars explanation, for these two deficits.
@@ -91,7 +98,7 @@ not cover the space.
 in the direction opposite to every critical-period account.
 
 **Evidence required.** A rejected two-sided permutation test with the exponent difference at
-or above the registered margin, and a control reading `LAG`.
+or above the registered margin, against a fitted control.
 
 **Maximum scope.** A description of these two onsets at this scale. The mechanism is not
 identified and no mechanism is claimed.
@@ -123,7 +130,11 @@ This study cannot establish:
 - that MLX, this hardware, or this implementation is free of common-mode error;
 - that a gap surviving the top rung would survive a budget an order of magnitude larger;
 - that the fitted power law holds outside the budget range the ladder spans;
-- that `alpha = 1` proves a pure lag rather than failing to distinguish one.
+- that `alpha = 1` proves a pure lag rather than failing to distinguish one;
+- **whether any damage measured here is a lag or a permanent scar.** That is an absolute
+  question, it needs `Δ_eff` estimated across rungs, and three rungs cannot pin it down.
+  Section 3.2.1 drops it rather than answering it, and no exponent reported here may be
+  pressed into service for it.
 
 ## Provenance note
 

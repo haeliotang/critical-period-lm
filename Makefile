@@ -9,9 +9,10 @@ REQUIRED_FILES := \
 
 TRAIN_MB ?= 600
 CALIBRATION_STEPS ?= 8000
-LADDER_BASE ?= 5400
+LADDER_BASE ?= 2700
+SEEDS ?= 0 1 2 3 4
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder report report-calibration
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -61,7 +62,7 @@ calibrate:
 ladder:
 	@for mult in 1 2 4; do \
 		budget=$$(( $(LADDER_BASE) * $$mult )); \
-		for s in 0 1 2 3 4; do \
+		for s in $(SEEDS); do \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
 				--condition baseline --seed $$s --total-steps $$budget || exit 1; \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train --calibration \
@@ -76,6 +77,28 @@ ladder:
 		done; \
 	done
 	$(MAKE) report-calibration
+
+# The registered ladder. No --calibration: the trainer refuses to start unless the freeze
+# verifies, and records land in runs/. Fresh seeds by Section 8.3 -- reusing the calibration
+# seeds would make this a recomputation rather than a replication.
+registered-ladder:
+	@for mult in 1 2 4; do \
+		budget=$$(( $(LADDER_BASE) * $$mult )); \
+		for s in 5 6 7 8 9; do \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
+				--condition baseline --seed $$s --total-steps $$budget || exit 1; \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
+				--condition fixed_early_N4 --seed $$s --deficit fixed \
+				--onset-frac 0.0 --duration-frac 0.16 --total-steps $$budget || exit 1; \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
+				--condition shuffle_early_N4 --seed $$s --deficit shuffle \
+				--onset-frac 0.0 --duration-frac 0.16 --total-steps $$budget || exit 1; \
+			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
+				--condition shuffle_late_N4 --seed $$s --deficit shuffle \
+				--onset-frac 0.5 --duration-frac 0.16 --total-steps $$budget || exit 1; \
+		done; \
+	done
+	$(MAKE) report
 
 report:
 	$(PYTHON) analysis/report.py

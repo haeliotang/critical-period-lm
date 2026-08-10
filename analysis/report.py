@@ -73,37 +73,53 @@ def format_report(result, records: list[RunRecord], raw: list[dict], exploratory
 
     lines += [
         "",
-        "## How the damage decays",
+        "## How fast is the damage repaired?",
         "",
-        "Gap to baseline, paired by seed, fitted as `gap(T) = c / T^alpha`. The exponent is",
-        "the answer: **1 means the gap falls exactly as fast as the lost training explains**",
-        "(repairable damage, nothing left over), **0 means it does not move at all**, and",
-        "anything between means something outlasts the training it cost. Each seed is fitted",
-        "separately and the interval is across seeds.",
+        "Gap to baseline, paired by seed, fitted as `gap(T) = c / T^alpha`. Each seed is",
+        "fitted separately and the interval is across seeds.",
+        "",
+        "**Every reading is taken against the negative control, not against a theoretical",
+        "value.** `alpha` mixes the deficit's cost with the baseline curve's own shape, and",
+        "that shape is common to every condition at a rung, so it cancels in a comparison and",
+        "nowhere else. What this buys is a comparative answer; what it gives up is the",
+        "absolute one — whether damage is a lag or a scar is out of scope, see `CLAIMS.md`.",
         "",
         "| Condition | " + " | ".join(f"{b:,}" for b in result.fits[0].budgets)
-        + " | alpha | 95% interval | reading |",
-        "| --- |" + " --- |" * (len(result.fits[0].budgets) + 3),
+        + " | alpha | 95% interval | vs control | p | reading |",
+        "| --- |" + " --- |" * (len(result.fits[0].budgets) + 5),
     ]
     for fit in result.fits:
         gaps = " | ".join(f"{g:+.4f}" for g in fit.mean_gaps)
         if math.isnan(fit.alpha):
-            lines.append(f"| `{fit.condition}` | {gaps} | — | — | {fit.reading} |")
-        else:
-            lines.append(
-                f"| `{fit.condition}` | {gaps} | {fit.alpha:.3f} | "
-                f"[{fit.alpha_low:.3f}, {fit.alpha_high:.3f}] | {fit.label} |"
-            )
+            lines.append(f"| `{fit.condition}` | {gaps} | — | — | — | — | {fit.reading} |")
+            continue
+        against = "anchor" if math.isnan(fit.delta_vs_control) or fit.reading == "ANCHOR" \
+            else f"{fit.delta_vs_control:+.3f}"
+        p_text = "—" if fit.reading == "ANCHOR" or math.isnan(fit.p_vs_control) \
+            else f"{fit.p_vs_control:.4f}"
+        lines.append(
+            f"| `{fit.condition}` | {gaps} | {fit.alpha:.3f} | "
+            f"[{fit.alpha_low:.3f}, {fit.alpha_high:.3f}] | {against} | {p_text} | "
+            f"{fit.label} |"
+        )
 
-    lines += ["", "### Budget at which each gap reaches the level floor", ""]
-    for fit in result.fits:
-        if math.isfinite(fit.crossing_budget):
-            lines.append(
-                f"- `{fit.condition}`: about {fit.crossing_budget:,.0f} steps "
-                f"(extrapolated from the fitted power law)"
-            )
-        else:
-            lines.append(f"- `{fit.condition}`: never, on the fitted law")
+    lines += [
+        "",
+        "### Descriptive only: what a pure lag would have predicted",
+        "",
+        "Reported so a reader can see the assumption fail rather than take it on trust.",
+        "Neither number gates anything.",
+        "",
+        "- Baseline local log-slopes between rungs: "
+        + ", ".join(f"{v:.4f}" for v in result.baseline_log_slopes),
+        f"- Naive pure-lag exponent, valid only if those slopes are equal: 1.000",
+        f"- Corrected for how they actually move: "
+        + (f"{result.implied_pure_lag_exponent:.3f}"
+           if math.isfinite(result.implied_pure_lag_exponent) else "not estimable"),
+        "",
+        "The correction rests on a handful of slope estimates from a handful of points. It is",
+        "enough to show that an anchor of 1 is wrong; it is not enough to be an anchor.",
+    ]
 
     lines += [
         "",

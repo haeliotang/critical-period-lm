@@ -1,23 +1,21 @@
 # Study status
 
-**Updated:** 2026-08-08
-**Design version:** `v3-draft`
-**Lifecycle state:** `DESIGN-V3-DRAFT; LADDER-2-PENDING; PRE-FREEZE`
-**Authorized next action:** run ladder 2 under the corrected five-seed plan, then freeze. No
-registered training run is authorized.
+**Updated:** 2026-08-10
+**Design version:** `v4` (frozen)
+**Lifecycle state:** `DESIGN-V4-FROZEN; REGISTERED-LADDER-RUNNING`
+**Authorized next action:** read out the registered ladder. It is the first run of this
+study that may support a claim.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
 pipeline, the model, and the trainer all exist. `make check` passes: 93 tests, including the
 Section 7.2 rehearsal gate, in which the frozen decision code returns each of its four
 verdicts against a planted ground truth.
 
-Nothing is frozen. `freeze-manifest.json` does not exist, so `make freeze-check` reports
-"not frozen", the trainer refuses any non-calibration run, and `make runs-check` refuses to
-pass if anything appears in `runs/`.
+**The design is frozen** at `v4`, six bound files, tag `cplm-design-v4-frozen`.
+`make freeze-check` verifies the manifest; any edit to a bound file now fails it.
 
-`runs/` is empty and `results/` is empty. Every number below came from exploratory runs
-under `calibration/`, which are excluded from every registered analysis and cannot support
-any claim in `CLAIMS.md`.
+Every number under `calibration/` is exploratory: ladders 1 and 2 and three earlier pilots
+were produced before the freeze and cannot support any claim in `CLAIMS.md`.
 
 ## Corpus
 
@@ -436,26 +434,123 @@ condition in Section 7.3.
 The rehearsal gate was rerun on fabricated ladders with planted exponents and returns all
 five study verdicts correctly. 93 tests pass.
 
-## What still has to happen before the freeze
+## Ladder 2: complete, and the anchor is what failed
 
-1. **Run ladder 2** under the corrected seed plan: 5 seeds, 4 conditions, rungs
-   2,700 / 5,400 / 10,800. 60 runs, 378,000 steps, about 26.4 hours. This is still
-   exploratory — it is the last calibration before the freeze, not the registered study.
-2. **Freeze**, if ladder 2's control reads `LAG` and the machinery behaves.
-3. **Run the registered ladder** and report it. Only that produces numbers that may support
-   a claim.
-4. **Declare the wall-clock ceiling**, which still does not exist.
+60 runs, 5 seeds, rungs 2,700 / 5,400 / 10,800. Verdict `DESIGN_FAILURE`. Archived under
+`calibration/archive/ladder2/`. Every deficit run paired — the seed-plan defect is gone.
 
-## Known open design questions
+| Condition | 2,700 | 5,400 | 10,800 | alpha | 95% interval | reading |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fixed_early_N4` (control) | +0.1067 | +0.0506 | +0.0220 | 1.139 | [1.015, 1.262] | UNDETERMINED |
+| `shuffle_early_N4` | +0.0986 | +0.0475 | +0.0201 | 1.162 | [0.855, 1.470] | LAG |
+| `shuffle_late_N4` | +0.0646 | +0.0373 | +0.0222 | 0.770 | [0.743, 0.796] | SUBLINEAR |
 
-- The t-interval on `alpha` is a normality assumption at five seeds and is this design's
-  weakest inference. Declared in Section 5.3; the primary contrast does not depend on it.
-- Three rungs is the minimum for fitting a rate. A fourth would tighten every exponent
-  materially and costs about 24 hours more.
+The control's interval excludes 1 from above, by 0.015, so the Section 5.7 gate fired and
+suppressed the primary contrast.
+
+### The anchor `alpha = 1` is wrong, and the data say by how much
+
+`gap(T) = b·Δ/T`, hence `alpha = 1`, holds only if the learning curve's log-slope `b` is
+constant. It is not. Measured on the baseline rungs:
+
+| Interval | `b` |
+| --- | --- |
+| 2,700 → 5,400 | 0.3688 |
+| 5,400 → 10,800 | 0.2586 |
+
+`b` falls 30% per doubling. Correcting the derivation,
+`alpha_lag = 1 − dlog(b)/dlog(T) = 1.512`. Under that anchor the control at 1.139 is
+*below* the pure-lag rate; under the registered anchor of 1.000 it is above. **Two
+incompatible readings from the same number, decided entirely by which anchor is assumed** —
+which is the signal that the anchor should not be theoretical at all.
+
+### The control is the anchor. That is what a negative control is for.
+
+Reading each condition against the control rather than against theory absorbs the falling-`b`
+systematic and anything else the measurement does to every condition alike:
+
+| Contrast | Difference | Two-sided p |
+| --- | --- | --- |
+| `shuffle_early_N4` − control | +0.023 | 0.8651 |
+| `shuffle_late_N4` − control | −0.369 | 0.0079 |
+
+Early damage is indistinguishable from the control. Late damage is not.
+
+### The primary contrast, suppressed by the gate
+
+`alpha(early) − alpha(late) = +0.392`, two-sided p = 0.0079 — the 5-versus-5 floor. It
+depends on no anchor, being a difference of two exponents. Ladder 1 saw +0.276 at three
+seeds and could not reject; the five-seed plan resolved it.
+
+### A precision limit worth naming
+
+At the top rung the gap is ~0.022 against a baseline seed SD of 0.0043 — a ratio of five.
+Log-space fitting turns top-rung noise into exponent noise, and the rung that carries the
+most information about decay is the one where the gap is smallest.
+
+Baseline seed 4 at 10,800 is the worst of the five (1.8648 against 1.8559 for the others).
+Gaps at that seed compress accordingly, and two exponent outliers follow: control 1.300
+against 1.098 for seeds 0–3, and `shuffle_early` 1.582 against 1.057.
+
+**Sensitivity check, post-hoc and labelled as such.** Dropping seed 4 entirely: control
+1.098 [1.022, 1.175], early 1.057 [0.913, 1.202], late 0.773 [0.737, 0.810]; early − late
++0.284 at p = 0.0286; early − control −0.041 at p = 0.54. Every conclusion survives. This
+is a robustness note, not the analysis; no seed is excluded from any reported result.
+
+## Design v4: frozen
+
+The control is the anchor. Readings are `LIKE_CONTROL` / `SLOWER_THAN_CONTROL` /
+`FASTER_THAN_CONTROL` against the control's own fitted exponent, never against a theoretical
+value. A control far from `alpha = 1` is the anchor, not a failure — the v3 rule that failed
+ladder 2 for exactly that was wrong. Recorded in
+`deviations/2026-08-10-control-becomes-the-anchor.md`.
+
+**The absolute question is dropped.** Whether damage is a lag or a scar needs `Δ_eff`
+estimated across rungs, and three rungs cannot pin it down. Section 3.2.1 declares it out of
+scope and `CLAIMS.md` forbids pressing any exponent into service for it. What remains is
+comparative and anchor-free.
+
+Applied to ladder 2's data as an exploratory check, the frozen rules read:
+
+| Condition | alpha | vs control | p | reading |
+| --- | --- | --- | --- | --- |
+| `fixed_early_N4` | 1.139 | anchor | — | ANCHOR |
+| `shuffle_early_N4` | 1.162 | +0.023 | 0.8651 | LIKE_CONTROL |
+| `shuffle_late_N4` | 0.770 | −0.369 | 0.0079 | SLOWER_THAN_CONTROL |
+
+Verdict `REVERSE_ONSET_EFFECT`, primary contrast +0.392 at two-sided p = 0.0079. **This is
+exploratory and supports no claim.**
+
+Frozen at design `v4`, manifest `freeze-manifest.json`, six bound files, tag
+`cplm-design-v4-frozen`. `make freeze-check` verifies; the trainer will now start registered
+runs and the report driver will produce a registered verdict.
+
+## Registered ladder: running
+
+Seeds **5–9**, fresh. Reusing the calibration seeds 0–4 would have made the registered run a
+recomputation rather than a replication and the freeze ceremonial — Section 8.3. Four
+conditions, rungs 2,700 / 5,400 / 10,800, 60 runs, about 26.4 hours. Records land in `runs/`
+and the report goes to `results/registered/`.
+
+This is the first and only run of this study that may support a claim.
+
+## Limitations carried into the freeze, not fixed
+
+Recorded as limitations because the endpoint has been revised four times, every revision was
+informed by data already seen, and further refinement against the same exploratory data buys
+less than a genuine out-of-sample replication.
+
+- The t-interval on `alpha` at five seeds is a normality assumption and is the weakest
+  inference in the design. The primary contrast does not rest on it.
 - The power law is fitted over a 4× budget range and is an extrapolation outside it.
+- Top-rung precision: the gap there is only about five times the baseline seed SD, and
+  log-space fitting turns top-rung noise into exponent noise. In ladder 2 one unlucky
+  baseline seed produced exponent outliers of 1.300 and 1.582.
 - The late-arm onset is fixed at `0.5T` by fiat.
-- `drafts/v3-wsd-design.md` (fixed wound, WSD schedule, trunk-branch execution) remains an
-  optional sharpening. Ladder 1 retired the confound that motivated it, so it is no longer
-  a prerequisite for reading a result. Note its name predates this version number.
+- Post-deficit learning-rate area is 51% for the late arm. Under a level endpoint this was a
+  confound; under an exponent endpoint a constant proportional handicap moves the amplitude
+  and leaves the exponent alone.
+- `drafts/v3-wsd-design.md` remains an optional sharpening. Its name predates this version
+  numbering.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.
