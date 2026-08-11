@@ -1,10 +1,10 @@
 # Study status
 
-**Updated:** 2026-08-10
+**Updated:** 2026-08-11
 **Design version:** `v4` (frozen)
-**Lifecycle state:** `DESIGN-V4-FROZEN; REGISTERED-LADDER-RUNNING`
-**Authorized next action:** read out the registered ladder. It is the first run of this
-study that may support a claim.
+**Lifecycle state:** `DESIGN-V4-FROZEN; REGISTERED-LADDER-COMPLETE; INCONCLUSIVE`
+**Authorized next action:** report the inconclusive registered result. Any change to the
+margin rule is a new design version and a new registered run on new seeds.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
 pipeline, the model, and the trainer all exist. `make check` passes: 93 tests, including the
@@ -525,32 +525,88 @@ Frozen at design `v4`, manifest `freeze-manifest.json`, six bound files, tag
 `cplm-design-v4-frozen`. `make freeze-check` verifies; the trainer will now start registered
 runs and the report driver will produce a registered verdict.
 
-## Registered ladder: running
+## Registered ladder: complete. Verdict `INCONCLUSIVE`.
 
-Seeds **5–9**, fresh. Reusing the calibration seeds 0–4 would have made the registered run a
-recomputation rather than a replication and the freeze ceremonial — Section 8.3. Four
-conditions, rungs 2,700 / 5,400 / 10,800, 60 runs, about 26.4 hours. Records land in `runs/`
-and the report goes to `results/registered/`.
+60 runs, seeds 5–9, rungs 2,700 / 5,400 / 10,800, under the frozen `v4` rules. Records in
+`runs/`, report in `results/registered/`. Every deficit run paired; no run dropped.
 
-This is the first and only run of this study that may support a claim.
+| Condition | 2,700 | 5,400 | 10,800 | alpha | 95% interval | vs control | p | reading |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `fixed_early_N4` | +0.1045 | +0.0447 | +0.0196 | 1.227 | [1.020, 1.434] | anchor | — | ANCHOR |
+| `shuffle_early_N4` | +0.1007 | +0.0459 | +0.0195 | 1.193 | [1.076, 1.310] | −0.034 | 0.7460 | LIKE_CONTROL |
+| `shuffle_late_N4` | +0.0633 | +0.0387 | +0.0222 | 0.756 | [0.744, 0.767] | −0.472 | 0.0079 | UNDETERMINED |
+
+Primary contrast: `alpha(early) − alpha(late) = +0.438`, two-sided p = 0.0079, one-sided p
+(critical-period direction) = 1.0000. Exponent margin 0.501.
+
+**The verdict is `INCONCLUSIVE` because the margin exceeds the difference.** This is the
+registered rule applied as written. It has not been re-analysed and will not be.
+
+### The effect replicated out of sample. The verdict did not.
+
+| | Seeds | Delta | Two-sided p | Margin | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| Ladder 2 (exploratory) | 0–4 | +0.392 | 0.0079 | 0.298 | `REVERSE_ONSET_EFFECT` |
+| Registered | 5–9 | +0.438 | 0.0079 | 0.501 | `INCONCLUSIVE` |
+
+The point estimate reproduced closely and the permutation test sat on its 5-versus-5 floor
+in both. What moved was the margin.
+
+**This is what the fresh-seed rule bought.** Had the registered ladder reused seeds 0–4 it
+would have returned `REVERSE_ONSET_EFFECT` and the freeze would have certified a result that
+a genuine out-of-sample replication does not support. Section 8.3 existed for exactly this
+and it earned its place.
+
+### Why the margin moved
+
+The margin is `3 × SD` of the control's per-seed exponents — the control's own noise sets
+what counts as a real difference. Its five exponents were 1.075, 1.160, 1.149, 1.247 and
+**1.505**. The outlier belongs to seed 9, whose top-rung gap was 0.0124 against 0.0184–0.0276
+for the others, because that seed's baseline at 10,800 was the worst of the five. One seed
+roughly doubled the margin, from about 0.25 to 0.501.
+
+**This is the limitation that was written into the freeze in advance.** The carried
+limitations named top-rung precision — the gap there is only about five times the baseline
+seed SD, and log-space fitting turns top-rung noise into exponent noise — and cited the
+identical mechanism seen in ladder 2. The study documented its own failure mode before the
+run and then hit it.
+
+Note the asymmetry in precision: `shuffle_late_N4`'s exponents scatter by 0.009 across seeds
+while the control's scatter by 0.167. The quantity that decides the margin is the noisiest
+one in the design.
+
+### What the registered run does establish
+
+- `shuffle_early_N4` reads `LIKE_CONTROL` (−0.034, p = 0.746): early damage is repaired at
+  the same rate as an information-preserving deficit of the same size and onset.
+- `shuffle_late_N4`'s exponent is 0.756 [0.744, 0.767], tightly determined.
+- The instrument behaved: control fitted, all seeds paired, no runs dropped, baseline seed
+  SD 0.0029 at the top rung.
+
+### What it does not establish
+
+That onset changes the repair rate. The difference is large and the permutation test is at
+its floor, but the registered margin — set by the control's own scatter — is larger still.
+Under `CLAIMS.md` C1 and C3 this is an inconclusive result reported with the margin it was
+weighed against, not a null and not a finding.
+
+## If there is a next study
+
+Not a re-analysis of this one. A new design version and a new registered run on new seeds.
+The defect to address is identifiable: a margin taken from a single condition's seed scatter
+makes the study's power hostage to that condition's luck. Candidates are a scale pooled
+across conditions, a robust scale estimate, more seeds, or a fourth rung to stabilise the
+per-seed exponents. None of them may be applied to the data above.
 
 ## Limitations carried into the freeze, not fixed
 
-Recorded as limitations because the endpoint has been revised four times, every revision was
-informed by data already seen, and further refinement against the same exploratory data buys
-less than a genuine out-of-sample replication.
-
-- The t-interval on `alpha` at five seeds is a normality assumption and is the weakest
-  inference in the design. The primary contrast does not rest on it.
+- The t-interval on `alpha` at five seeds is a normality assumption. The primary contrast
+  does not rest on it.
 - The power law is fitted over a 4× budget range and is an extrapolation outside it.
-- Top-rung precision: the gap there is only about five times the baseline seed SD, and
-  log-space fitting turns top-rung noise into exponent noise. In ladder 2 one unlucky
-  baseline seed produced exponent outliers of 1.300 and 1.582.
+- **Top-rung precision** — the limitation that decided this study's outcome.
 - The late-arm onset is fixed at `0.5T` by fiat.
-- Post-deficit learning-rate area is 51% for the late arm. Under a level endpoint this was a
-  confound; under an exponent endpoint a constant proportional handicap moves the amplitude
-  and leaves the exponent alone.
-- `drafts/v3-wsd-design.md` remains an optional sharpening. Its name predates this version
-  numbering.
+- Post-deficit learning-rate area is 51% for the late arm; under an exponent endpoint a
+  constant proportional handicap moves the amplitude and leaves the exponent alone.
+- `drafts/v3-wsd-design.md` remains an optional sharpening.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.

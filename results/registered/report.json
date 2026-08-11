@@ -1,0 +1,109 @@
+{
+  "verdict": "INCONCLUSIVE",
+  "reasons": [
+    "exponent delta +0.438 and two-sided p 0.0079 settle neither an onset effect nor its absence against a margin of 0.501",
+    "shuffle_early_N4 read LIKE_CONTROL: early damage is repaired at the same rate as the information-preserving control"
+  ],
+  "level_margin": 0.01,
+  "exponent_margin": 0.5006434768329135,
+  "baseline_sd": 0.0029148717070549934,
+  "top_budget": 10800,
+  "primary_delta": 0.43759653177622815,
+  "primary_p_one_sided": 1.0,
+  "primary_p_two_sided": 0.007936507936507936,
+  "baseline_log_slopes": [
+    0.36748210191544095,
+    0.2644828145005015
+  ],
+  "implied_pure_lag_exponent": 1.237250001706627,
+  "fits": [
+    {
+      "condition": "fixed_early_N4",
+      "budgets": [
+        2700,
+        5400,
+        10800
+      ],
+      "mean_gaps": [
+        0.10452699363231659,
+        0.04470896497368813,
+        0.019613128155469894
+      ],
+      "seeds_fitted": 5,
+      "seeds_dropped": 0,
+      "alpha": 1.227091508033924,
+      "alpha_low": 1.0199143998731177,
+      "alpha_high": 1.4342686161947302,
+      "per_seed_alpha": [
+        1.07538894562258,
+        1.1598774389491715,
+        1.1485073586964052,
+        1.2465417428207541,
+        1.5051420540807086
+      ],
+      "top_gap": 0.019613128155469894,
+      "delta_vs_control": 0.0,
+      "p_vs_control": 1.0,
+      "reading": "ANCHOR"
+    },
+    {
+      "condition": "shuffle_early_N4",
+      "budgets": [
+        2700,
+        5400,
+        10800
+      ],
+      "mean_gaps": [
+        0.10069207549095154,
+        0.04591735824942589,
+        0.019474882632493973
+      ],
+      "seeds_fitted": 5,
+      "seeds_dropped": 0,
+      "alpha": 1.1931692422973827,
+      "alpha_low": 1.0761853026686203,
+      "alpha_high": 1.3101531819261452,
+      "per_seed_alpha": [
+        1.0813581305772992,
+        1.2190626424815683,
+        1.1075916605714298,
+        1.2914978746076975,
+        1.2663359032489192
+      ],
+      "top_gap": 0.019474882632493973,
+      "delta_vs_control": -0.033922265736541224,
+      "p_vs_control": 0.746031746031746,
+      "reading": "LIKE_CONTROL"
+    },
+    {
+      "condition": "shuffle_late_N4",
+      "budgets": [
+        2700,
+        5400,
+        10800
+      ],
+      "mean_gaps": [
+        0.06325132921338081,
+        0.038656967133283614,
+        0.02219306156039238
+      ],
+      "seeds_fitted": 5,
+      "seeds_dropped": 0,
+      "alpha": 0.7555727105211546,
+      "alpha_low": 0.7443609408892758,
+      "alpha_high": 0.7667844801530334,
+      "per_seed_alpha": [
+        0.753708490454393,
+        0.7437073408933382,
+        0.7578529869269385,
+        0.7687551244771783,
+        0.7538396098539251
+      ],
+      "top_gap": 0.02219306156039238,
+      "delta_vs_control": -0.47151879751276937,
+      "p_vs_control": 0.007936507936507936,
+      "reading": "UNDETERMINED"
+    }
+  ],
+  "exploratory": false
+}
