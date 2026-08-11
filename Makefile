@@ -11,6 +11,7 @@ TRAIN_MB ?= 600
 CALIBRATION_STEPS ?= 8000
 LADDER_BASE ?= 2700
 SEEDS ?= 0 1 2 3 4
+REGISTERED_BASE ?= 1350
 
 .PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration
 
@@ -82,9 +83,9 @@ ladder:
 # verifies, and records land in runs/. Fresh seeds by Section 8.3 -- reusing the calibration
 # seeds would make this a recomputation rather than a replication.
 registered-ladder:
-	@for mult in 1 2 4; do \
-		budget=$$(( $(LADDER_BASE) * $$mult )); \
-		for s in 5 6 7 8 9; do \
+	@for mult in 1 2 4 8; do \
+		budget=$$(( $(REGISTERED_BASE) * $$mult )); \
+		for s in 10 11 12 13 14 15 16 17; do \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
 				--condition baseline --seed $$s --total-steps $$budget || exit 1; \
 			PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.train \
@@ -109,7 +110,7 @@ report-calibration:
 # Registered runs may not exist before the freeze tag does.
 runs-check:
 	@if test ! -f freeze-manifest.json; then \
-		unexpected="$$(find runs -mindepth 1 ! -name README.md -print)"; \
+		unexpected="$$(find runs -mindepth 2 -name run.json -print)"; \
 		if test -n "$$unexpected"; then \
 			echo "run artifacts exist but the design is not frozen:" >&2; \
 			echo "$$unexpected" >&2; \

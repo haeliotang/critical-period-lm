@@ -24,8 +24,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = ROOT / "freeze-manifest.json"
 
-DESIGN_VERSION = "v4"
-FREEZE_TAG = "cplm-design-v4-frozen"
+DESIGN_VERSION = "v5"
+FREEZE_TAG = "cplm-design-v5-frozen"
 
 BOUND_FILES = (
     "preregistration.md",

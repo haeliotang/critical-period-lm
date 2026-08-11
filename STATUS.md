@@ -1,10 +1,10 @@
 # Study status
 
 **Updated:** 2026-08-11
-**Design version:** `v4` (frozen)
-**Lifecycle state:** `DESIGN-V4-FROZEN; REGISTERED-LADDER-COMPLETE; INCONCLUSIVE`
-**Authorized next action:** report the inconclusive registered result. Any change to the
-margin rule is a new design version and a new registered run on new seeds.
+**Design version:** `v5` (frozen); v4 result final and reported
+**Lifecycle state:** `V4-INCONCLUSIVE-FINAL; V5-FROZEN; V5-LADDER-RUNNING`
+**Authorized next action:** read out the v5 ladder, and report it together with the v4
+inconclusive result — never instead of it.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
 pipeline, the model, and the trainer all exist. `make check` passes: 93 tests, including the
@@ -590,23 +590,48 @@ its floor, but the registered margin — set by the control's own scatter — is
 Under `CLAIMS.md` C1 and C3 this is an inconclusive result reported with the margin it was
 weighed against, not a null and not a finding.
 
-## If there is a next study
+## Design v5: frozen. Instrument improved, judgment untouched.
 
-Not a re-analysis of this one. A new design version and a new registered run on new seeds.
-The defect to address is identifiable: a margin taken from a single condition's seed scatter
-makes the study's power hostage to that condition's luck. Candidates are a scale pooled
-across conditions, a robust scale estimate, more seeds, or a fourth rung to stabilise the
-per-seed exponents. None of them may be applied to the data above.
+`decision_rules.py` is **byte-identical** between v4 and v5
+(`0dd42ed5566b838e…`, checkable in both manifests). The margin formula, readings, verdicts
+and primary contrast are exactly what they were before the v4 result was seen. v5 spends
+compute rather than credibility: the cheaper fix — pooling the scale across conditions —
+would have changed a decision rule after seeing the result it disfavoured.
 
-## Limitations carried into the freeze, not fixed
+| | v4 | v5 |
+| --- | --- | --- |
+| Rungs | 2,700 / 5,400 / 10,800 | **1,350** / 2,700 / 5,400 / 10,800 |
+| Seeds | 5 (indices 5–9) | **8** (indices 10–17) |
+| Decision rules | frozen | **unchanged, same hash** |
+| Sample SD relative error | ±34% | ±26% |
+| Two-sided permutation floor | 0.008 | 0.00016 |
 
-- The t-interval on `alpha` at five seeds is a normality assumption. The primary contrast
-  does not rest on it.
-- The power law is fitted over a 4× budget range and is an extrapolation outside it.
-- **Top-rung precision** — the limitation that decided this study's outcome.
+The fourth rung is **below**, not above: at the top rung the gap is 0.020 against a baseline
+seed SD of 0.0029, so extending upward would push it further into the noise. At 1,350 the
+gap is near 0.20. Registered risk: the power law may not hold that early, so the exponent is
+reported both with and without the low rung, and a disagreement between them is a finding.
+
+Frozen at tag `cplm-design-v5-frozen`. Records go to `runs/v5/`, report to
+`results/registered/v5/`. The v4 evidence is untouched at `runs/v4/` and
+`results/registered/v4/`.
+
+## v5 registered ladder: running
+
+32 condition-seed combinations over four rungs, 648,000 steps, about 45.3 hours.
+
+**Whatever it returns, the write-up carries both results.** The v4 `INCONCLUSIVE` is not
+superseded by a better instrument; it is reported beside it, with the ordering stated.
+
+## Limitations carried forward, still not fixed
+
+- The t-interval on `alpha` is a normality assumption; the primary contrast does not rest
+  on it.
+- The power law is fitted over an 8× budget range now, and is still an extrapolation
+  outside it.
 - The late-arm onset is fixed at `0.5T` by fiat.
-- Post-deficit learning-rate area is 51% for the late arm; under an exponent endpoint a
-  constant proportional handicap moves the amplitude and leaves the exponent alone.
-- `drafts/v3-wsd-design.md` remains an optional sharpening.
+- The absolute lag-versus-scar question remains out of scope: it needs `Δ_eff` estimated
+  across rungs, and four rungs is still not enough to pin that down.
+- `drafts/v3-wsd-design.md` remains an optional sharpening; `drafts/v5-design.md` records
+  the path not taken and why.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.

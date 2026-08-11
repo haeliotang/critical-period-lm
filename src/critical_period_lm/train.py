@@ -51,7 +51,9 @@ from critical_period_lm.deficits import warmup_steps as registered_warmup_steps
 from critical_period_lm.model import ModelConfig, Transformer
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNS_DIR = ROOT / "runs"
+# Registered records are scoped by design version: a v5 ladder must not be analysed
+# together with the v4 records, whose result is final and separately reported.
+RUNS_DIR = ROOT / "runs" / freeze.DESIGN_VERSION
 CALIBRATION_DIR = ROOT / "calibration"
 
 # Fixed for the whole study so that each control is the same transformation in every run.

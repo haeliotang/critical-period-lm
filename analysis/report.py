@@ -33,7 +33,7 @@ from critical_period_lm.decision_rules import (  # noqa: E402
     study_verdict,
 )
 
-RUNS_DIR = ROOT / "runs"
+RUNS_DIR = ROOT / "runs" / freeze.DESIGN_VERSION
 CALIBRATION_DIR = ROOT / "calibration"
 RESULTS_DIR = ROOT / "results"
 
@@ -210,7 +210,7 @@ def main() -> int:
     # not a registered result is ever written into results/.
     source = destination = CALIBRATION_DIR if args.calibration else RUNS_DIR
     if not args.calibration:
-        destination = RESULTS_DIR / "registered"
+        destination = RESULTS_DIR / "registered" / freeze.DESIGN_VERSION
 
     if not args.calibration:
         problems = freeze.verify_manifest()

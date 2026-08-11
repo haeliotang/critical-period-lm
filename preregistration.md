@@ -1,6 +1,6 @@
 # Preregistration: Critical Learning Periods in Small Language Models
 
-**Design version:** `v4`
+**Design version:** `v5`
 **Status:** frozen. Calibration is complete; ladders 1 and 2 were exploratory and cannot
 support any claim. The registered ladder runs under fresh seeds, for the reason in
 Section 8.4.
@@ -227,42 +227,60 @@ this study. See Section 7.3.
 
 ### 4.3 Registered ladder and seed plan
 
-Let `B` be the base budget in optimizer steps, fixed at calibration. Every condition is run
-at `B`, `2B` and `4B`. Within each rung a run is `T_total` steps long and the deficit
-geometry of Section 4.4 applies to that rung's own budget.
+Base budget `B = 1,350` optimizer steps. Every condition is run at `B`, `2B`, `4B` and `8B`
+— 1,350 / 2,700 / 5,400 / 10,800. The deficit geometry of Section 4.4 applies to each rung's
+own budget.
 
 | Condition | Deficit | Window | Seeds per rung |
 | --- | --- | --- | --- |
-| `baseline` | none | — | 5 |
-| `shuffle_early_N4` | S | `[0, N4)` | 5 |
-| `shuffle_late_N4` | S | `[0.5T, 0.5T + N4)` | 5 |
-| `fixed_early_N4` | F | `[0, N4)` | 5 |
+| `baseline` | none | — | 8 |
+| `shuffle_early_N4` | S | `[0, N4)` | 8 |
+| `shuffle_late_N4` | S | `[0.5T, 0.5T + N4)` | 8 |
+| `fixed_early_N4` | F | `[0, N4)` | 8 |
 
 **The baseline must carry every seed index any deficit arm uses, at every rung.** Gaps are
-paired by seed, so a deficit run whose seed has no baseline partner contributes nothing at
-all. Ladder 1 gave the primary arms four seeds and the baseline three; the fourth seed of
-each arm was therefore unpairable at every rung, six runs trained and bought nothing, and
-the effective sample fell to three per arm.
+paired by seed, so a deficit run whose seed has no baseline partner contributes nothing.
 
-**Five seeds is a requirement, not a preference.** The primary contrast is an exact
-permutation test over per-seed exponents, and its smallest attainable p-value is fixed by
-the seed count alone:
+#### Why the fourth rung is below and not above
 
-| Seeds per arm | One-sided floor | Two-sided floor |
-| --- | --- | --- |
-| 3 | 0.050 | **0.100 — cannot reject at 0.05, whatever the effect size** |
-| 4 | 0.014 | 0.029 |
-| 5 | 0.004 | 0.008 |
+The design v4 ladder ran 2,700 / 5,400 / 10,800 and its registered result was
+`INCONCLUSIVE` because the exponent margin — three times the control's own per-seed scatter
+— came out at 0.501 against a difference of 0.438. The control's scatter was inflated by one
+seed whose top-rung gap was 0.0124 against 0.0184–0.0276 for the others, because that seed's
+baseline at the top rung was the worst of the five.
 
-At three seeds the secondary two-sided test is structurally incapable of rejecting. Ladder 1
-hit exactly this: an exponent difference of 0.276 against a margin of 0.153 returned
-`INCONCLUSIVE` at p = 0.100, the floor. The seed-plan defect cost precisely the power needed
-to detect what the data were pointing at.
+At the top rung the gap is about 0.020 against a baseline seed SD of 0.0029, so a single
+unlucky baseline run compresses that seed's gap and levers the log fit at its endpoint.
+**Extending the ladder upward makes this worse**, since the gap keeps shrinking toward the
+noise floor. A rung at 1,350 has a gap near 0.20 — the most precisely measured point
+available — and it anchors the fit from the other end.
 
-The duration sweep (`N1` through `N3`) is deferred; a ladder multiplies run count by the
-number of rungs and the sweep is descriptive rather than load-bearing. Out of scope without
-an amendment: a late-onset arm for Deficit F, a finer onset sweep, deficits applied to
-evaluation data, model-scale sweeps, architecture variation.
+**Registered risk.** At 1,350 steps the model is early enough that the power law may not
+hold there. The exponent is therefore reported **both with and without the low rung**, and a
+disagreement between the two is a finding about the model rather than a nuisance to be
+smoothed away. Neither fit is preferred after the fact; the four-rung fit is the registered
+one and the three-rung fit is reported beside it.
+
+#### Why eight seeds
+
+The margin is a scale estimated from the control's seeds, and a sample standard deviation is
+itself noisy: at five seeds it scatters by ±34% of the truth, at eight by ±26%. Design v4's
+margin came out 0.298 on one seed set and 0.501 on the next while the effect estimate barely
+moved. Seeds are the only thing that buys degrees of freedom, and the exact permutation
+floors improve alongside.
+
+| Seeds per arm | One-sided floor | Two-sided floor | Relative error of the sample SD |
+| --- | --- | --- | --- |
+| 5 | 0.004 | 0.008 | ±34% |
+| 8 | 0.00008 | 0.00016 | ±26% |
+
+**Seed indices 10–17.** Calibration used 0–4 and the v4 registered ladder used 5–9. No seed
+is ever reused: a registered run on seeds already seen is a recomputation, not a
+replication.
+
+The duration sweep (`N1` through `N3`) remains deferred. Out of scope without an amendment:
+a late-onset arm for Deficit F, a finer onset sweep, deficits applied to evaluation data,
+model-scale sweeps, architecture variation.
 
 ### 4.4 Recovery protocol
 
@@ -319,8 +337,9 @@ Section 4.3, which exists because ladder 1 wasted six runs on exactly this.
 
 ### 5.2 Budget ladder
 
-Three rungs, each double the one below. Rungs and seed counts are fixed at calibration and
-frozen. Two rungs can show that a gap changed; three are the minimum for fitting a rate.
+Four rungs, each double the one below. Rungs and seed counts are frozen. Two rungs can show
+that a gap changed; three are the minimum for fitting a rate; the fourth is what makes the
+rate stable enough for the margin to mean something.
 
 ### 5.3 Fitting
 
@@ -504,7 +523,8 @@ because a ladder that cannot afford its top rung cannot answer the question.
 
 ### 8.3 The registered ladder uses fresh seeds
 
-Calibration used seeds 0–4. **The registered ladder uses seeds 5–9.**
+Calibration used seeds 0–4 and the v4 registered ladder used 5–9. **The v5 registered
+ladder uses seeds 10–17.**
 
 Reusing the calibration seeds would make the registered run a recomputation rather than a
 replication: same configuration, same seeds, same numbers, and the freeze would be

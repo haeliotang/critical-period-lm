@@ -1,6 +1,6 @@
 {
-  "design_version": "v4",
-  "freeze_tag": "cplm-design-v4-frozen",
+  "design_version": "v5",
+  "freeze_tag": "cplm-design-v5-frozen",
   "files": [
     {
       "path": "CLAIMS.md",
@@ -8,7 +8,7 @@
     },
     {
       "path": "preregistration.md",
-      "sha256": "d8b18e415cda96222e442780f03b40472ac7b7774e9f5d552f3ec9af8ab074ca"
+      "sha256": "eab9ca0956d3453b39e2789c217fb3de42e48f0ed19ca79943673e6a0c822f92"
     },
     {
       "path": "src/critical_period_lm/decision_rules.py",
@@ -27,5 +27,5 @@
       "sha256": "040c029228f9dae64323214bb8c6cebb96dd2ed45883294967290b118c2447b5"
     }
   ],
-  "corpus_sha256": "3a9d7d673be5c0e4b5b80e456c1904389f31f57f11accf0793c578ec7beb9e20"
+  "corpus_sha256": "deb1417bb6529aeec6954294a13c01228d6055670ff60e5f61cdc32fffb91be5"
 }
