@@ -1,0 +1,125 @@
+{
+  "verdict": "REVERSE_ONSET_EFFECT",
+  "reasons": [
+    "onset mattered in the direction opposite to a critical period: shuffle_late_N4 repaired more slowly than shuffle_early_N4 by 0.392 in exponent (two-sided p 0.0002). Late damage outlasts early damage, which no critical-period account predicts",
+    "shuffle_early_N4 read LIKE_CONTROL: early damage is repaired at the same rate as the information-preserving control"
+  ],
+  "level_margin": 0.01,
+  "exponent_margin": 0.32325274390412484,
+  "baseline_sd": 0.0023475676465629877,
+  "top_budget": 10800,
+  "primary_delta": 0.3917931945211812,
+  "primary_p_one_sided": 1.0,
+  "primary_p_two_sided": 0.0001554001554001554,
+  "baseline_log_slopes": [
+    0.48609663298563766,
+    0.365477574251683,
+    0.26464061100117436
+  ],
+  "implied_pure_lag_exponent": 1.5848057804158415,
+  "fits": [
+    {
+      "condition": "fixed_early_N4",
+      "budgets": [
+        1350,
+        2700,
+        5400,
+        10800
+      ],
+      "mean_gaps": [
+        0.21059371251612902,
+        0.10300488071516156,
+        0.04336068406701088,
+        0.019660995341837406
+      ],
+      "seeds_fitted": 8,
+      "seeds_dropped": 0,
+      "alpha": 1.1577777884499039,
+      "alpha_low": 1.0676814550914997,
+      "alpha_high": 1.247874121808308,
+      "per_seed_alpha": [
+        1.1650933151644451,
+        1.2627664231454794,
+        1.1403529464847875,
+        1.1207252883272496,
+        0.941588301018212,
+        1.186316836035023,
+        1.1435071635794074,
+        1.3018720338446275
+      ],
+      "top_gap": 0.019660995341837406,
+      "delta_vs_control": 0.0,
+      "p_vs_control": 1.0,
+      "reading": "ANCHOR"
+    },
+    {
+      "condition": "shuffle_early_N4",
+      "budgets": [
+        1350,
+        2700,
+        5400,
+        10800
+      ],
+      "mean_gaps": [
+        0.20911114197224379,
+        0.10185861261561513,
+        0.04667462967336178,
+        0.01900651352480054
+      ],
+      "seeds_fitted": 8,
+      "seeds_dropped": 0,
+      "alpha": 1.1547545593385524,
+      "alpha_low": 1.084541145153555,
+      "alpha_high": 1.22496797352355,
+      "per_seed_alpha": [
+        1.0725304673498566,
+        1.269974320769658,
+        1.2035050754233876,
+        1.0637096498198682,
+        1.0753638356843138,
+        1.2452426992987635,
+        1.1082254004854466,
+        1.1994850258771257
+      ],
+      "top_gap": 0.01900651352480054,
+      "delta_vs_control": -0.0030232291113514442,
+      "p_vs_control": 0.9524475524475524,
+      "reading": "LIKE_CONTROL"
+    },
+    {
+      "condition": "shuffle_late_N4",
+      "budgets": [
+        1350,
+        2700,
+        5400,
+        10800
+      ],
+      "mean_gaps": [
+        0.10969702806323767,
+        0.06434428878128529,
+        0.038116340059787035,
+        0.022392658982425928
+      ],
+      "seeds_fitted": 8,
+      "seeds_dropped": 0,
+      "alpha": 0.7629613648173712,
+      "alpha_low": 0.7444030189345163,
+      "alpha_high": 0.7815197107002261,
+      "per_seed_alpha": [
+        0.776436296177599,
+        0.7559337889012744,
+        0.7585313481041228,
+        0.7756336863133168,
+        0.7627404841282003,
+        0.8025910059139143,
+        0.7346386434123099,
+        0.7371856655882324
+      ],
+      "top_gap": 0.022392658982425928,
+      "delta_vs_control": -0.39481642363253266,
+      "p_vs_control": 0.0001554001554001554,
+      "reading": "SLOWER_THAN_CONTROL"
+    }
+  ],
+  "exploratory": false
+}

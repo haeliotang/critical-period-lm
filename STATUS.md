@@ -1,10 +1,10 @@
 # Study status
 
-**Updated:** 2026-08-11
+**Updated:** 2026-08-13
 **Design version:** `v5` (frozen); v4 result final and reported
-**Lifecycle state:** `V4-INCONCLUSIVE-FINAL; V5-FROZEN; V5-LADDER-RUNNING`
-**Authorized next action:** read out the v5 ladder, and report it together with the v4
-inconclusive result — never instead of it.
+**Lifecycle state:** `V4-INCONCLUSIVE-FINAL; V5-COMPLETE; REVERSE-ONSET-EFFECT`
+**Authorized next action:** write up both registered results together. No further run is
+needed for the registered claim.
 
 The registered design, the claim register, the two deficits, the decision rules, the corpus
 pipeline, the model, and the trainer all exist. `make check` passes: 93 tests, including the
@@ -615,23 +615,91 @@ Frozen at tag `cplm-design-v5-frozen`. Records go to `runs/v5/`, report to
 `results/registered/v5/`. The v4 evidence is untouched at `runs/v4/` and
 `results/registered/v4/`.
 
-## v5 registered ladder: running
+## v5 registered ladder: complete. Verdict `REVERSE_ONSET_EFFECT`.
 
-32 condition-seed combinations over four rungs, 648,000 steps, about 45.3 hours.
+128 runs, seeds 10–17, rungs 1,350 / 2,700 / 5,400 / 10,800, under frozen `v5` rules whose
+judgment code is byte-identical to `v4`. Records at `runs/v5/`, report at
+`results/registered/v5/`. Every deficit run paired; none dropped.
 
-**Whatever it returns, the write-up carries both results.** The v4 `INCONCLUSIVE` is not
-superseded by a better instrument; it is reported beside it, with the ordering stated.
+| Condition | 1,350 | 2,700 | 5,400 | 10,800 | alpha | 95% interval | vs control | p | reading |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `fixed_early_N4` | +0.2106 | +0.1030 | +0.0434 | +0.0197 | 1.158 | [1.068, 1.248] | anchor | — | ANCHOR |
+| `shuffle_early_N4` | +0.2091 | +0.1019 | +0.0467 | +0.0190 | 1.155 | [1.085, 1.225] | −0.003 | 0.9524 | LIKE_CONTROL |
+| `shuffle_late_N4` | +0.1097 | +0.0643 | +0.0381 | +0.0224 | 0.763 | [0.744, 0.782] | −0.395 | 0.0002 | SLOWER_THAN_CONTROL |
 
-## Limitations carried forward, still not fixed
+Primary contrast `alpha(early) − alpha(late) = +0.392`, two-sided exact permutation
+p = 0.00016 (the 8-versus-8 floor), against a margin of 0.323. One-sided p in the
+critical-period direction: 1.0000.
 
-- The t-interval on `alpha` is a normality assumption; the primary contrast does not rest
-  on it.
-- The power law is fitted over an 8× budget range now, and is still an extrapolation
-  outside it.
-- The late-arm onset is fixed at `0.5T` by fiat.
-- The absolute lag-versus-scar question remains out of scope: it needs `Δ_eff` estimated
-  across rungs, and four rungs is still not enough to pin that down.
-- `drafts/v3-wsd-design.md` remains an optional sharpening; `drafts/v5-design.md` records
-  the path not taken and why.
+**Early damage repairs at the control's rate to three decimal places** (−0.003, p = 0.95).
+Late damage does not (−0.395, p = 0.0002).
+
+### Section 4.3 registered obligation: the fit with and without the low rung
+
+| Condition | Four rungs (registered) | Three rungs (2,700 up) | Difference |
+| --- | --- | --- | --- |
+| `fixed_early_N4` | 1.158 [1.068, 1.248] | 1.201 [1.113, 1.290] | −0.044 |
+| `shuffle_early_N4` | 1.155 [1.085, 1.225] | 1.214 [1.096, 1.332] | −0.059 |
+| `shuffle_late_N4` | 0.763 [0.744, 0.782] | 0.761 [0.733, 0.789] | +0.002 |
+
+Both fits clear the margin at p = 0.00016; the delta is +0.392 on four rungs and +0.453 on
+three. **The low rung is not driving the result.** The registered risk — that the power law
+might not hold at 1,350 steps — did not materialise, and the obligation is discharged with
+agreement rather than with a finding.
+
+### The instrument change did what it was for
+
+| | v4 | v5 |
+| --- | --- | --- |
+| Control per-seed scatter | SD 0.1669 | SD 0.1078 |
+| Exponent margin | 0.501 | 0.323 |
+| Two-sided permutation floor | 0.008 | 0.00016 |
+
+The margin fell because the control's exponents stopped scattering, which is what the fourth
+rung and the extra seeds were bought to do. **No decision rule changed** — the hashes match.
+
+### The effect across three independent seed sets
+
+| Run | Seeds | Δ | Margin | Verdict |
+| --- | --- | --- | --- | --- |
+| Ladder 2 (exploratory) | 0–4 | +0.392 | 0.298 | `REVERSE_ONSET_EFFECT` |
+| v4 registered | 5–9 | +0.438 | 0.501 | **`INCONCLUSIVE`** |
+| v5 registered | 10–17 | +0.392 | 0.323 | `REVERSE_ONSET_EFFECT` |
+
+The effect estimate is stable across seed sets that share no runs. What moved between v4 and
+v5 was the instrument's precision, not the measurement.
+
+## What may now be claimed, and what may not
+
+**May be claimed** (`CLAIMS.md` C4, and C1 in its comparative form): at this scale, corpus
+and schedule, damage from a window-shuffle deficit applied at mid-training is repaired more
+slowly than the same deficit applied at the start, while the early deficit is repaired at the
+same rate as an information-preserving control. Onset matters, in the direction **opposite**
+to every critical-period account.
+
+**May not be claimed.** That the damage is permanent, or a lag — that question is out of
+scope and no exponent here may be pressed into service for it. Anything about larger models,
+production pretraining, other deficits, other schedules, or human development.
+
+**Provenance, which must travel with the claim.** The `REVERSE_ONSET_EFFECT` verdict was
+added to the register *after* ladder 1 pointed at the pattern; `CLAIMS.md` C4 records the
+ordering. The registered evidence for it is v5, and the v4 `INCONCLUSIVE` is part of that
+record, not a discarded attempt.
+
+## Reporting obligation, standing
+
+Any write-up carries **both** registered results: v4 `INCONCLUSIVE` with its diagnosed cause,
+and v5 `REVERSE_ONSET_EFFECT`. An improved instrument that returns a cleaner answer is a
+normal scientific outcome; an improved instrument presented without the first answer is not.
+
+## Limitations, unchanged
+
+- The t-interval on `alpha` is a normality assumption; the primary contrast does not rest on
+  it and is an exact permutation test.
+- The power law is fitted over an 8× budget range and is an extrapolation outside it.
+- The late-arm onset is fixed at `0.5T` by fiat. **The mechanism behind the effect is not
+  identified and none is claimed.**
+- The absolute lag-versus-scar question remains out of scope.
+- `drafts/v3-wsd-design.md` and `drafts/v5-design.md` record paths not taken.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.
