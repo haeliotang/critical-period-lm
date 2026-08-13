@@ -53,3 +53,19 @@ representational measure was taken, rather than leaving the §5.8 list to imply 
 
 Checkpointing at the top rung costs about 30 MB per run and no training time. Any successor
 design should save it, and should treat this entry as the reason.
+
+## Postscript: an attempted edit to the frozen text, and its reversal
+
+On writing this entry the frozen `preregistration.md` §5.8 was also edited, to strike through
+the CKA line and point here. `make freeze-check` rejected it immediately:
+
+    FREEZE VIOLATION: preregistration.md changed after freeze
+
+The edit was wrong and has been reverted. §10 of the preregistration says amendments after
+the freeze are new files under `deviations/`, and the frozen text is never edited — which is
+exactly what this file is. Annotating the registered document to record that one of its
+measures went unproduced is still annotating the registered document, and a reader who wants
+to know what was registered must be able to read it as it stood.
+
+Recorded because the mechanism catching its author is the only evidence that it catches
+anyone.

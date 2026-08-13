@@ -410,11 +410,7 @@ Descriptive only; none can promote, demote or qualify a primary verdict.
 - The budget at which each fitted law reaches the level floor, computed **from the power
   law**. The retired log-linear form predicted negative gaps one rung beyond the data and
   understated this quantity about twofold.
-- ~~Layerwise CKA~~ — **registered but not produced**; no checkpoints were saved, so it is
-  not computable from the run records. See
-  `deviations/2026-08-13-cka-registered-but-not-produced.md`. It is descriptive only and no
-  verdict depends on it.
-- Full loss curves, wall-clock and token counts.
+- Layerwise CKA, full loss curves, wall-clock and token counts.
 
 
 ## 6. Registered controls
