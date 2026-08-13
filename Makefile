@@ -112,6 +112,7 @@ report-calibration:
 robustness:
 	$(PYTHON) analysis/multiverse.py v4
 	$(PYTHON) analysis/multiverse.py v5
+	$(PYTHON) analysis/handicap.py v5
 
 # Registered runs may not exist before the freeze tag does.
 runs-check:
