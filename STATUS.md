@@ -692,6 +692,33 @@ Any write-up carries **both** registered results: v4 `INCONCLUSIVE` with its dia
 and v5 `REVERSE_ONSET_EFFECT`. An improved instrument that returns a cleaner answer is a
 normal scientific outcome; an improved instrument presented without the first answer is not.
 
+## Robustness exhibit: how much of each verdict was the analysis choice
+
+`results/robustness/{v4,v5}/multiverse.md`, produced by `make robustness`. **Enumerated
+after both registered verdicts were known.** It is not a result and does not revise one;
+the frozen cell of the grid reproduces the registered verdict in both cases, which is what
+makes the shares interpretable at all.
+
+144 defensible specifications: four sources for the margin's scale × three multiples of it ×
+three floors × two exponent estimators × two rung sets. The verdict logic does not vary.
+
+| Registered run | Verdict | Specifications agreeing | Dissent |
+| --- | --- | --- | --- |
+| v4 | `INCONCLUSIVE` | 90 / 144 (**62%**) | `REVERSE_ONSET_EFFECT` × 54 |
+| v5 | `REVERSE_ONSET_EFFECT` | 138 / 144 (**96%**) | `INCONCLUSIVE` × 6 |
+
+**This is the quantitative form of what the v4 entry says in prose.** More than a third of
+reasonable analysts would have called v4 a positive result; the verdict turned substantially
+on where the margin's scale came from — 83% agreement under the frozen control-only scale
+against 33% under a scale pooled across the two contrasted arms. v5 is not like that: its
+only dissent comes from the widest margin taken from the noisiest scale source, and every
+other dimension is unanimous.
+
+Four specifications are **excluded by name with reasons** rather than swept in: unpaired
+gaps, nudging non-positive gaps into the logarithm, anchoring the exponent on the refuted
+theoretical value 1, and dropping the outlier seed. Including options already known to be
+wrong lets bad pipelines vote, and a spread manufactured that way says nothing.
+
 ## Limitations, unchanged
 
 - The t-interval on `alpha` is a normality assumption; the primary contrast does not rest on

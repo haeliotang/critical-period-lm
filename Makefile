@@ -13,7 +13,7 @@ LADDER_BASE ?= 2700
 SEEDS ?= 0 1 2 3 4
 REGISTERED_BASE ?= 1350
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -106,6 +106,12 @@ report:
 
 report-calibration:
 	$(PYTHON) analysis/report.py --calibration
+
+# Robustness exhibit, not a result. Enumerated after both registered verdicts were known;
+# every artifact it writes says so. Writes to results/robustness/, never results/registered/.
+robustness:
+	$(PYTHON) analysis/multiverse.py v4
+	$(PYTHON) analysis/multiverse.py v5
 
 # Registered runs may not exist before the freeze tag does.
 runs-check:
