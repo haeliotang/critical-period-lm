@@ -1,128 +1,135 @@
 # critical-period-lm
 
-Does a data deficit applied early in language-model pretraining leave damage that later
-clean training cannot repair — and is the damage specific to *when* it happened rather
-than to *how much* of it there was?
+Vision networks have critical periods: blur an image stream during an early window of CNN
+training and final accuracy is permanently reduced, no matter how long you train afterwards
+(Achille, Rovere & Soatto, ICLR 2019). Does anything like that happen in language-model
+pretraining?
 
-Critical learning periods are established in vision: Achille, Rovere and Soatto showed
-that blurring images during an early window of CNN training permanently reduces final
-accuracy no matter how long the network is afterwards trained on clean data, while a
-deficit that leaves low-level image statistics intact leaves no permanent trace. This
-repository is a preregistered transfer of that protocol to autoregressive language
-modeling, at a scale that runs on one Mac.
+This repository is a preregistered test, at a scale that runs on one Mac.
 
-**Status: pre-calibration, pre-freeze. No training runs exist and none are authorized.**
-See [STATUS.md](STATUS.md).
+**Both registered ladders are complete.** The design is frozen at `v5`
+(tag `cplm-design-v5-frozen`); `v4` is frozen at `cplm-design-v4-frozen` and its result is
+final and reported alongside. See [STATUS.md](STATUS.md).
 
-## What is being tested
+## What was found
+
+| Registered run | Seeds | α(early) − α(late) | Two-sided p | Verdict |
+| --- | --- | --- | --- | --- |
+| v4 | 5–9 | +0.438 | 0.0002 | **`INCONCLUSIVE`** |
+| v5 | 10–17 | +0.392 | 0.0002 | **`REVERSE_ONSET_EFFECT`** |
+
+Under v5, at four budget rungs and eight seeds:
+
+| Condition | 1,350 | 2,700 | 5,400 | 10,800 | α | vs control | reading |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `fixed_early_N4` (control) | +0.2106 | +0.1030 | +0.0434 | +0.0197 | 1.158 | anchor | ANCHOR |
+| `shuffle_early_N4` | +0.2091 | +0.1019 | +0.0467 | +0.0190 | 1.155 | −0.003 (p 0.95) | LIKE_CONTROL |
+| `shuffle_late_N4` | +0.1097 | +0.0643 | +0.0381 | +0.0224 | 0.763 | −0.395 (p 0.0002) | SLOWER_THAN_CONTROL |
+
+Read the first and last columns together. Early damage starts almost twice as large as late
+damage and ends smaller: over an 8× budget increase the early gap shrinks 11.0-fold, the
+control's 10.7-fold, and the late gap only 4.9-fold. **The two cross.**
+
+So: damage from a deficit applied at mid-training is repaired more slowly than damage from
+the same deficit applied at the start, while the early deficit is repaired at the
+information-preserving control's rate to three decimal places. **Onset matters, in the
+direction opposite to every critical-period account.**
+
+The v4 run measured the same effect (+0.438) and returned `INCONCLUSIVE`, because its margin
+— three times the control's own seed scatter — came out at 0.501. That result is not
+superseded by v5; it is reported with it.
+
+## What is being measured
+
+Gaps are paired against a seed-matched clean baseline and fitted as `gap(T) = c / T^α` per
+seed, with `α` — how fast damage is repaired as the budget grows — the registered quantity.
+
+**Every reading is taken against the negative control, never against a theoretical value.**
+`α` mixes the deficit's cost with the baseline curve's own shape, and that shape is common to
+every condition at a rung, so it cancels in a comparison and cancels nowhere else.
 
 | | |
 | --- | --- |
-| Primary contrast | Same deficit, same duration, applied early versus applied at mid-training |
-| Deficit S (predicted to scar) | Shuffle token order within 16-token windows |
-| Deficit P (negative control) | Relabel every token id through one fixed bijection |
-| Primary endpoint | Held-out cross-entropy at the final step, in nats per token |
-| Primary test | Exact one-sided permutation test, 4 versus 4 runs, `α = 0.05` |
-| Recovery budget | `2.0 ×` the clean budget after the deficit is removed, fixed in advance |
+| Deficit S | shuffle token order within 16-token windows, resampled every time |
+| Deficit F (control) | the same operation with one **fixed**, invertible permutation |
+| Primary contrast | `α(early) − α(late)`, exact permutation test, 8 vs 8 |
+| Margin | 3 × the control's per-seed exponent scatter, floored at 0.10 |
+| Ladder | 1,350 / 2,700 / 5,400 / 10,800 steps, 8 seeds, 4 conditions |
 
-The early-versus-late contrast is the primary one because a deficit applied to the first
-`N` steps also consumes `N` steps of budget. Varying only the duration cannot separate
-"early damage is special" from "corrupted data is bad" or from "less training happened".
-Holding the deficit and its duration fixed and moving only its onset is what makes the
-question a question about a critical period.
+Deficit F differs from Deficit S in exactly one respect — its permutation is fixed, so the
+reordering is invertible and nothing is destroyed. That single difference is what a negative
+control has to be.
 
-Deficit P is what makes a positive result interpretable. It burns exactly the same budget
-on non-clean data, and the task it defines is isomorphic to the clean task under a
-renaming, so if it recovers and Deficit S does not, the difference is the nature of the
-corruption rather than the lost compute. If Deficit P scars, the design has failed and no
-critical-period claim survives, whatever Deficit S did.
+## What this does not claim
 
-Read [preregistration.md](preregistration.md) for the registered design and
-[CLAIMS.md](CLAIMS.md) for the claims a result would and would not license.
+**Whether the damage is permanent or merely slow to repair is out of scope.** Answering that
+needs the deficit's cost in effective training steps held constant across rungs, and four
+rungs cannot pin that down. The question is dropped, not answered, and no exponent here may
+be pressed into service for it.
+
+Also excluded: anything about larger models, production pretraining, other deficits, other
+learning-rate schedules, or human development. **No mechanism is identified and none is
+claimed** — the one registered representational measure was never produced, and
+[that is recorded](deviations/2026-08-13-cka-registered-but-not-produced.md).
+
+The `REVERSE_ONSET_EFFECT` verdict category was added to the claim register *after*
+exploratory data pointed at the pattern. `CLAIMS.md` C4 records the ordering so a reader can
+discount it.
 
 ## What this is not about
 
-The idea came out of a conversation about development and plasticity — whether a model
-whose weights are frozen can be said to have grown up. That framing may motivate the work.
-It licenses nothing. This study measures optimization dynamics in a 10M-parameter
-transformer, and `CLAIMS.md` forbids any developmental, cognitive, or welfare reading of
-the result. A finding here is a finding about training, at one scale, with two deficits.
+The idea came from a conversation about development and plasticity — whether a model whose
+weights are frozen can be said to have grown up. That framing may motivate the work. It
+licenses nothing. `CLAIMS.md` forbids any developmental, cognitive or welfare reading of
+these numbers, and that prohibition was written on day one, before any data existed.
 
 ## Layout
 
 ```
-preregistration.md   registered design; frozen before the first run
+preregistration.md   registered design, frozen; v4 and v5 differ only in the instrument
 CLAIMS.md            the strongest claims a result may support
 STATUS.md            mutable pointer to where the study actually is
+deviations/          append-only; every departure, and why, and when it was decided
+drafts/              designs considered and not adopted, with the reasons
 src/critical_period_lm/
-  decision_rules.py  FROZEN judgment logic: exact permutation tests, verdicts
-  deficits.py        FROZEN definitions of Deficit S and Deficit P
+  decision_rules.py  FROZEN judgment logic — byte-identical between v4 and v5
+  deficits.py        FROZEN definitions of Deficit S and Deficit F, and the geometry
   freeze.py          hashes the design corpus, detects post-freeze drift
   data.py            TinyStories download, BPE tokenizer, token arrays, digests
-  model.py           small decoder-only transformer in MLX
-  train.py           one run of the grid; writes an immutable run record
-tests/               includes the rehearsal gate for the decision rules
-runs/                append-only run records; empty until the design is frozen
-analysis/            reads runs/, never writes to it
-results/             reported outputs
-deviations/          append-only log of every departure from the registered design
+  model.py           7.34M-parameter decoder-only transformer in MLX
+  train.py           one run; refuses to start without an intact freeze
+analysis/report.py   reads every record, no filtering, no discretion
+runs/v4/ runs/v5/    registered records, 60 and 128
+results/registered/  the reports the frozen code produced
+calibration/         exploratory: three pilots and two ladders, excluded from every claim
 ```
 
-## Freeze rules
-
-The design-defining files are hashed into `freeze-manifest.json` and carried by an
-annotated git tag before the first registered run. After that:
-
-- frozen files are never edited; a correction is a new file under `deviations/`;
-- `runs/` is append-only, and analysis code reads it without writing to it;
-- verdicts come from the frozen code, not from prose;
-- a change to the primary endpoint, the direction, the margin, the recovery multiplier, or
-  the decision rules invalidates the freeze and needs a new design version and tag.
-
-`decision_rules.py` had to pass its rehearsal before being frozen: on fabricated records it
-returns `CRITICAL_PERIOD` under a planted effect, `NO_CRITICAL_PERIOD` under a planted null
-it had the resolution to see, `INCONCLUSIVE` under a planted null it did not, and
-`DESIGN_FAILURE` when the negative control is planted to scar. A judgment rule that has
-never been run against a known answer is not a registered rule.
-
-## Running it
+## Running the checks
 
 ```bash
 make check
 ```
 
-Compiles the package, runs all tests including the rehearsal gate, verifies the freeze if
-one exists, and refuses to pass if run artifacts appear before the design is frozen.
+Compiles, runs 93 tests including the rehearsal gate, verifies the freeze, and refuses to
+pass if registered records exist without one.
 
-```bash
-make data
-```
+The rehearsal gate is the part worth knowing about: before the decision code was allowed to
+see a real run, it had to return each of its five verdicts correctly against fabricated
+ladders with planted decay exponents. A judgment rule that has never been run against a known
+answer is not a registered rule.
 
-Downloads TinyStories, fits a 4096-token byte-level BPE on the training text only, encodes
-both splits, and writes `data/manifest.json`. Those digests are folded into every run's
-config hash, so a run record is bound to the corpus it was trained on.
+## How the design got here
 
-```bash
-make calibrate
-```
+Four endpoints were tried and three failed, each recorded in `deviations/`. Each of the first
+three smuggled in a parameter from outside the experiment: where the run happened to stop, an
+arbitrary 0.01-nat floor, and a theoretical `α = 1` that assumed a constant learning-curve
+slope the same data showed falling 30% per doubling. A control-anchored comparison smuggles
+in nothing — every quantity it uses is measured in the same runs.
 
-An exploratory run, written to `calibration/` rather than `runs/` and exempt from the
-freeze gate. This is how the clean budget `T` and the throughput estimate get measured
-rather than guessed. Nothing measured here may change the endpoint, the margin, the
-direction, or the recovery multiplier.
+The single most useful rule turned out to be this one: **the registered run may not reuse any
+seed the calibration used.** Calibration used seeds 0–4, v4 used 5–9, v5 used 10–17. Had v4
+reused the calibration seeds it would have returned `REVERSE_ONSET_EFFECT` and the freeze
+would have certified a result that a genuine out-of-sample replication does not support.
 
-Two gates in the trainer refuse rather than warn: a registered run will not start unless
-the design is frozen and the freeze verifies, and no run will overwrite an existing record,
-because a repeat of an identical config is a collision to explain rather than a file to
-replace.
-
-## Statistical note
-
-Cells hold 3 to 5 runs, so normal-theory tests are not defensible. Every comparison is an
-exact permutation test over the full set of label assignments. With 4 versus 4 the smallest
-attainable p-value is `1/70 ≈ 0.014`; with 3 versus 3 it is exactly `0.05`, which is why the
-two primary cells carry four seeds and the others do not.
-
-Every non-detection is reported with its minimum detectable effect, and any cell whose
-resolution is worse than the registered margin is labeled a **calibrated null
-(underpowered)** rather than presented as a clean negative.
+`decision_rules.py` hashes identically in the v4 and v5 manifests. v5 improved the instrument
+— a fourth rung below the others, eight seeds instead of five — and changed no rule.
