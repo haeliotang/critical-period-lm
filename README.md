@@ -133,3 +133,12 @@ would have certified a result that a genuine out-of-sample replication does not 
 
 `decision_rules.py` hashes identically in the v4 and v5 manifests. v5 improved the instrument
 — a fourth rung below the others, eight seeds instead of five — and changed no rule.
+
+## Licence
+
+Code under [MIT](LICENSE); the preregistration, the paper, the deviation log and the run
+records under [CC BY 4.0](LICENSE-TEXT.md). The split and the attribution string are in
+[LICENSE-TEXT.md](LICENSE-TEXT.md).
+
+Neither licence bears on what the numbers may be used to claim. `CLAIMS.md` does, and its
+limits hold wherever the data goes.
