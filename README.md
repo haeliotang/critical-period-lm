@@ -101,8 +101,15 @@ src/critical_period_lm/
 analysis/report.py   reads every record, no filtering, no discretion
 runs/v4/ runs/v5/    registered records, 60 and 128
 results/registered/  the reports the frozen code produced
-calibration/         exploratory: three pilots and two ladders, excluded from every claim
+calibration/         exploratory: three pilots and two ladders — local only, see below
 ```
+
+**`calibration/` and `data/` are not in this repository.** The corpus is regenerable with
+`make data`. The calibration records are withheld deliberately rather than for size: they are
+the exploratory runs the design was built against, and beside `runs/` they would be
+distinguishable from registered evidence only by their directory name. What bears on the
+result is not those numbers but what each pilot showed and what it changed, and that is in
+[deviations/](deviations/) — including the two ladders that refuted an endpoint apiece.
 
 ## Running the checks
 
