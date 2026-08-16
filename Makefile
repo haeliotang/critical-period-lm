@@ -13,7 +13,7 @@ LADDER_BASE ?= 2700
 SEEDS ?= 0 1 2 3 4
 REGISTERED_BASE ?= 1350
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness figure
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -113,6 +113,11 @@ robustness:
 	$(PYTHON) analysis/multiverse.py v4
 	$(PYTHON) analysis/multiverse.py v5
 	$(PYTHON) analysis/handicap.py v5
+
+# The paper's figure, recomputed from the registered records. Not an exhibit and not a
+# result: it draws what results/registered/ already says, and carries no number of its own.
+figure:
+	$(PYTHON) analysis/figure.py v5
 
 # Registered runs may not exist before the freeze tag does.
 runs-check:

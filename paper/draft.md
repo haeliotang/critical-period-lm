@@ -1,4 +1,4 @@
-# Damage from a mid-training data deficit outlasts damage from the same deficit at the start
+# No critical period in language-model pretraining, and an onset effect running the other way
 
 *Preregistered ladder experiments in small language models.*
 
@@ -28,7 +28,8 @@ same deficit applied at mid-training is not (Δα = −0.395, p = 0.0002). The t
 as late damage and ends smaller; the curves cross.
 
 We report two registered results, not one. A first registered run measured the same effect
-(+0.438, same p) and returned `INCONCLUSIVE`, because its margin — three times the control's
+(+0.438, and like this one a p-value pinned at the floor of its own permutation test) and
+returned `INCONCLUSIVE`, because its margin — three times the control's
 own seed scatter — came out larger than the effect. It is reported here in full, with its
 cause. Had that run reused the seeds used for calibration it would have returned a positive
 verdict that a genuine out-of-sample replication does not support.
@@ -47,7 +48,7 @@ of one architecture.
 
 Does anything like this happen in language-model pretraining?
 
-The closest existing evidence points away from it. Constantinescu et al. (TACL 2024) varied
+The closest existing evidence points away from it. Constantinescu et al. (TACL 2025) varied
 the age of exposure to a second language and found **no** critical period; they had to insert
 a plasticity-decreasing regularizer to manufacture one. Their manipulation is delayed
 exposure to new material rather than degraded input during a window followed by clean input,
@@ -103,7 +104,7 @@ Training runs under MLX on an M1 Pro at 32.5k tokens/s.
 
 Learning rate: linear warmup over 2% of the run, then cosine decay to exactly zero. The
 schedule is a registered constant and a named scope limit — Pawlak (2025) reports that
-critical-period effects can be removed by a cyclic schedule, so any result here is conditional
+critical-period effects in vision can be removed by a cyclic schedule, so any result here is conditional
 on this one.
 
 ### 2.2 The two deficits
@@ -172,6 +173,22 @@ Mean gap to baseline, in nats per token:
 Read the first and last columns together. Early damage begins nearly twice as large as late
 damage and ends smaller.
 
+![Left: gap to a seed-matched baseline against training budget, both axes logarithmic, with
+fitted power laws. The control and the early arm lie on the same line; the late arm is
+shallower and crosses them near 8,000 steps. Right: the eight per-seed exponents behind each
+fit, with the registered margin shown as a band around the control's
+mean.](figures/decay-v5.png)
+
+**Figure 1.** Both panels are produced by `analysis/figure.py` from the registered records;
+no value is entered by hand. *(a)* On log axes a power law is a straight line and α is its
+slope. The fitted early and late curves meet at T ≈ 7,987 — inside the ladder, between the
+third and fourth rungs. **A level endpoint would have reported whichever side of that
+crossing its single budget happened to fall on**, which is the argument of Section 1.1 in one
+picture. *(b)* The late arm's eight seeds span 0.735–0.803, a band narrower than its distance
+from the other sixteen, so the contrast is not one seed's doing. The control's own spread —
+0.942–1.302, the widest of the three — is what the registered margin is three times of, and
+is why the same effect could fail to clear it.
+
 ### 3.2 Early damage is indistinguishable from the control
 
 | Condition | α | 95% interval | vs control | p | Reading |
@@ -197,12 +214,14 @@ direction opposite to every critical-period account.
 An earlier registered run, under a design differing from this one only in its instrument,
 returned `INCONCLUSIVE`:
 
-| Run | Seeds | Rungs | Δα | Two-sided p | Margin | Verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| v4 | 5–9 | 3 | +0.438 | 0.0002 | 0.501 | `INCONCLUSIVE` |
-| v5 | 10–17 | 4 | +0.392 | 0.0002 | 0.323 | `REVERSE_ONSET_EFFECT` |
+| Run | Seeds | Rungs | Δα | Two-sided p | Permutation floor | Margin | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| v4 | 5–9 | 3 | +0.438 | 0.0079 | 2/252 = 0.0079 | 0.501 | `INCONCLUSIVE` |
+| v5 | 10–17 | 4 | +0.392 | 0.0002 | 2/12870 = 0.00016 | 0.323 | `REVERSE_ONSET_EFFECT` |
 
-The effect estimate replicated; the margin did not hold. The margin is three times the
+Both p-values sit exactly on the floor of their own test — the separation was as complete as
+five and eight seeds respectively can register, and the two floors differ only because the
+seed counts do. The effect estimate replicated; the margin did not hold. The margin is three times the
 control's own per-seed scatter, and in v4 one seed's exponent came out at 1.505 against
 1.075–1.247 for the other four, because that seed's baseline at the top rung was the worst of
 the five and compressed its gap. One seed roughly doubled the margin.
@@ -268,19 +287,28 @@ before data existed.
 ## 5. Related work
 
 **Vision.** Achille et al. (ICLR 2019) established the phenomenon and the protocol, including
-the requirement for a control that leaves low-level statistics intact. Kleinman et al. (2023)
+the requirement for a control that leaves low-level statistics intact. Kleinman et al. (ICLR 2024)
 show it in deep linear networks.
 
-**Language models.** Constantinescu et al. (TACL 2024) found no critical period for delayed
+**Language models.** Constantinescu et al. (TACL 2025) found no critical period for delayed
 second-language exposure and had to add a plasticity-decreasing regularizer to produce one.
 Our result is a second negative on the critical-period question in a different paradigm —
 degraded input during a window rather than delayed exposure to new material — and adds a
 positive finding in the opposite direction that their design could not have seen.
 
-**Moderators.** Pawlak (2025) reports that critical-period effects can be removed by a cyclic
-learning-rate schedule. If that holds, a critical period is a property of a training
-configuration rather than of learning as such. We do not vary the schedule, so every result
-here is conditional on the one we used.
+**Moderators.** Pawlak (2025), replicating Achille et al. in vision, reports that
+critical-period damage and warm-starting damage alike can be averted by a cyclic
+learning-rate schedule: restarting the rate after the deficit nearly closes the gap to a
+model trained from scratch. If that holds, a critical period is a property of a training
+configuration rather than of learning as such, and every result here is conditional on the
+schedule we registered.
+
+That conditioning cuts in a specific direction worth stating. Our schedule warms up once and
+then decays monotonically to zero; it never restarts. On Pawlak's account this is the regime
+in which critical-period damage should be *most* visible, not least — and the early arm still
+tracks the control to three decimals. The null we report is therefore not obviously an
+artefact of a forgiving schedule. It could still be an artefact of a different one, and we
+did not vary it.
 
 **Corpus.** Eldan and Li's TinyStories provides a corpus at which models of this size produce
 readable, measurable language behaviour.
@@ -296,11 +324,25 @@ exponent and four significant figures in the amplitude, a deficit that destroys 
 the very start of training is repaired exactly as fast as one that merely hides it behind a
 fixed code.
 
-A speculative reading, offered as such: at the very start there is little structure to
-disrupt, and the corruption is paid for in training time and nothing else; by mid-training
-there is structure, and disrupting it costs something that time repays more slowly. **We have
-no evidence for this.** No representational measure was taken, and identifying the mechanism
-is a separate study.
+One reading suggests itself. Rather than leave it as a gloss that no result could contradict,
+we state what would refute it. Suppose that at the very start there is little structure to
+disrupt, so the corruption is paid for in training time and nothing else. Then the early arm
+should be equivalent to a clean run given a shorter budget — its damage describable as a
+*constant* debt in effective training steps, the same debt at every rung. The late arm should
+not be: disrupting structure that already exists should cost something that a fixed number of
+steps does not buy back.
+
+That is a prediction about exactly the quantity Section 4 puts out of scope, and it is out of
+scope for the same reason it is the right test. Recovering an effective-step debt means
+inverting the baseline learning curve, and four rungs cannot do it — our exploratory attempt
+returned 1370, 693, 882 steps for the control, which is interpolation noise, not a trend. On a
+denser ladder, **the early arm's debt should be flat across budgets and the late arm's should
+grow.** If both are flat, or both grow, this reading is wrong and the exponent difference has
+another source.
+
+**We have no evidence for it now.** No representational measure was taken — the one the design
+registered was never produced — and nothing in the exponents reported here discriminates
+between this account and any other account predicting the same two slopes.
 
 The methodological story may be the more transferable one. Three endpoints were tried and
 discarded before this one, and each failed the same way: it smuggled a parameter in from
@@ -350,3 +392,40 @@ discount it as they see fit.
 Every departure from the registered design, including one attempt to annotate the frozen text
 that the freeze check rejected, is in `deviations/` with its date, its reason, and whether it
 was decided before or after the affected result was visible.
+
+---
+
+## References
+
+Achille, A., Rovere, M., & Soatto, S. (2019). Critical Learning Periods in Deep Networks.
+*International Conference on Learning Representations*. arXiv:1711.08856.
+*The arXiv record carries the title* Critical Learning Periods in Deep Neural Networks; *the
+venue title is cited here.*
+
+Constantinescu, I., Pimentel, T., Cotterell, R., & Warstadt, A. (2025). Investigating Critical
+Period Effects in Language Acquisition through Neural Language Models. *Transactions of the
+Association for Computational Linguistics*, 13, 96–120. arXiv:2407.19325.
+*Circulated as a preprint in 2024 and presented at EMNLP 2024; the registered design cites the
+preprint year.*
+
+Eldan, R., & Li, Y. (2023). TinyStories: How Small Can Language Models Be and Still Speak
+Coherent English? arXiv:2305.07759.
+
+Kleinman, M., Achille, A., & Soatto, S. (2024). Critical Learning Periods Emerge Even in Deep
+Linear Networks. *International Conference on Learning Representations*. arXiv:2308.12221
+(2023).
+
+Kornblith, S., Norouzi, M., Lee, H., & Hinton, G. (2019). Similarity of Neural Network
+Representations Revisited. *International Conference on Machine Learning*. arXiv:1905.00414.
+*Source of the CKA measure the design registered and never produced; see Section 4.*
+
+Pawlak, S. (2025). On the Occurence of Critical Learning Periods in Neural Networks.
+arXiv:2510.09687. *The misspelling is the published title's.* Experiments are on vision
+networks, replicating and extending Achille et al.
+
+**On these references.** Each was checked against its arXiv or ACL Anthology record while this
+draft was written, and two attributions moved as a result: Kleinman et al. from 2023 to its
+ICLR 2024 publication, and Constantinescu et al. from the 2024 preprint to the 2025 journal
+volume. The frozen `preregistration.md` carries the earlier forms and is not edited to match —
+a citation year is not part of the registered design, and the freeze is worth more than the
+tidiness.
