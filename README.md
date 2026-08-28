@@ -32,8 +32,16 @@ control's 10.7-fold, and the late gap only 4.9-fold. **The two cross.**
 
 So: damage from a deficit applied at mid-training is repaired more slowly than damage from
 the same deficit applied at the start, while the early deficit is repaired at the
-information-preserving control's rate to three decimal places. **Onset matters, in the
-direction opposite to every critical-period account.**
+information-preserving control's rate to three decimal places. **Onset matters, and the
+later onset is the damaging one** — the reverse of the direction this study registered in
+advance.
+
+**That is not the same as contradicting the vision literature, and the paper says so.**
+Achille et al.'s own onset curve is non-monotonic: sensitivity peaks around a tenth of the
+way into their run, not at its start, so a deficit at step zero is not their worst case
+either. Two onsets cannot recover a curve's shape, and their endpoint is a level where ours
+is a rate. `CLAIMS.md` C4 has forbidden the "this reverses the vision literature" reading
+since before the data existed.
 
 The v4 run measured the same effect (+0.438) and returned `INCONCLUSIVE`, because its margin
 — three times the control's own seed scatter — came out at 0.501. That result is not

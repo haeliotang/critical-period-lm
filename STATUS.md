@@ -748,7 +748,20 @@ Three corrections were made while assembling it, all in the draft and none in a 
   than weakens the scope note: our schedule never restarts the learning rate, so on that
   account it is the regime where a critical period should be most visible.
 
+A fourth correction is larger and has its own deviation entry
+([2026-08-16](deviations/2026-08-16-c4-statement-overreaches-its-own-guard.md)):
+**"opposite to every critical-period account" describes no account that exists.** Achille et
+al.'s onset curve is non-monotonic and peaks around a tenth of the way into their run, so a
+deficit at step zero is not their worst case either; two onsets cannot recover a shape; and
+their endpoint is a level where ours is a rate. `CLAIMS.md` C4 had already forbidden the
+"this reverses the vision literature" reading, so the frozen register is left untouched and
+only the mutable prose in `README.md` and `paper/draft.md` was corrected. **The verdict is
+unaffected** — `REVERSE_ONSET_EFFECT` names a relation between two measured exponents.
+
 **Not submitted.** BabyLM 2026 closed on 20 July (ARR commitment 14 August); the workshop is
-24–29 October at EMNLP. The venue decision is open.
+24–29 October at EMNLP. The next open ARR cycle is **12 October 2026** (commitment 20 December,
+to NAACL 2027 / COLING 2027); ARR now requires every author to register as a reviewer, with an
+exemption for insufficient experience, and non-registration is a desk reject. The venue
+decision is open.
 
 This file is a mutable operational pointer and is not part of the freeze corpus.

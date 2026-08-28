@@ -1,4 +1,4 @@
-# No critical period in language-model pretraining, and an onset effect running the other way
+# No critical period in language-model pretraining: the later deficit is the one repaired more slowly
 
 *Preregistered ladder experiments in small language models.*
 
@@ -11,8 +11,9 @@
 
 Vision networks have critical periods: a stimulus deficit applied during an early window of
 training permanently reduces final accuracy, however long the network is afterwards trained
-on clean data. We test the analogous claim in autoregressive language-model pretraining, and
-find no critical period — but an onset effect running the other way.
+on clean data. We test the analogous claim in autoregressive language-model pretraining. The
+registered contrast was one-sided in the critical-period direction; it came out the other
+way, and the later of the two onsets is the one whose damage is repaired more slowly.
 
 Because a loss difference at a single training budget cannot distinguish permanent damage
 from recovery that has not finished, we measure the **rate** at which damage is repaired: the
@@ -206,8 +207,11 @@ rung-mean gaps). The late arm differs in both.
 `α(early) − α(late) = +0.392`, two-sided exact permutation p = 0.0002, against a registered
 margin of 0.323. One-sided p in the critical-period direction: 1.0000.
 
-**Registered verdict: `REVERSE_ONSET_EFFECT`.** Onset changes the repair rate, in the
-direction opposite to every critical-period account.
+**Registered verdict: `REVERSE_ONSET_EFFECT`.** Onset changes the repair rate, and the later
+onset is the one repaired more slowly — the reverse of the direction this study registered in
+advance. The name is a label for that measured relation between two exponents. It is **not** a
+claim that the vision literature is contradicted, and Section 5 says why that comparison is
+not available.
 
 ### 3.4 The other registered result
 
@@ -273,6 +277,12 @@ not computable from the records, and re-running with checkpointing would be a ne
 is recorded in `deviations/`; we state it rather than let the registered list imply a measure
 was taken.
 
+**The shape of the onset curve.** We have two onsets. Two points establish a difference and
+cannot establish a shape, and the shape is not a detail: the onset curve in Achille et al. is
+non-monotonic, peaking around a tenth of the way into their run rather than at its start
+(Section 5). Nothing here says whether the function relating onset to repair rate is
+monotonic, single-peaked, or something else, and no reading that requires it is licensed.
+
 **Anything about scale, schedule, or other deficits.** 7.34M parameters, one corpus, one
 learning-rate schedule, one deficit pair, one late onset chosen by fiat at half the clean
 budget.
@@ -287,14 +297,36 @@ before data existed.
 ## 5. Related work
 
 **Vision.** Achille et al. (ICLR 2019) established the phenomenon and the protocol, including
-the requirement for a control that leaves low-level statistics intact. Kleinman et al. (ICLR 2024)
-show it in deep linear networks.
+the requirement for a control that leaves low-level statistics intact. Kleinman et al. (ICLR
+2024) show it in deep linear networks. Their proposed mechanism — a loss of "Information
+Plasticity", read off the Fisher Information of the weights — is a claim we neither use nor
+test; nothing here depends on it being right.
+
+**Our result is not a contradiction of that literature, and we want to be exact about why.**
+Achille et al. slide a fixed-length deficit window across onsets and report, verbatim, that
+sensitivity "peaks in the central part of the early rapid learning phase (at around 30
+epochs), while introducing the deficit later produces little or no effect." Their onset curve
+is therefore **non-monotonic, and a deficit at the very start of training is not its most
+damaging case**. Two facts follow for the present study.
+
+First, our two onsets cannot be placed on that curve. Doing so requires a normalisation
+between a 300-epoch CIFAR schedule and a budget ladder from 1,350 to 10,800 steps, and no
+such normalisation is established.
+
+Second and more fundamentally, the two studies do not measure the same quantity. Their
+sensitivity is a level — final accuracy after a fixed amount of further training — and
+Section 1.1 is an argument that a level at one training length cannot separate damage that
+is permanent from damage that is merely behind. **A result cannot contradict a measurement
+that it also argues is not measuring the thing.** What we report is narrower and is not in
+competition with them: under a rate endpoint, at two onsets, the later one is repaired more
+slowly.
 
 **Language models.** Constantinescu et al. (TACL 2025) found no critical period for delayed
 second-language exposure and had to add a plasticity-decreasing regularizer to produce one.
 Our result is a second negative on the critical-period question in a different paradigm —
 degraded input during a window rather than delayed exposure to new material — and adds a
-positive finding in the opposite direction that their design could not have seen.
+positive onset finding their design could not have seen, since varying age of exposure to new
+material does not produce a window of degraded input to time.
 
 **Moderators.** Pawlak (2025), replicating Achille et al. in vision, reports that
 critical-period damage and warm-starting damage alike can be averted by a cyclic
@@ -309,6 +341,15 @@ in which critical-period damage should be *most* visible, not least — and the 
 tracks the control to three decimals. The null we report is therefore not obviously an
 artefact of a forgiving schedule. It could still be an artefact of a different one, and we
 did not vary it.
+
+**Data order and the schedule.** Luo et al. (2025) find that curriculum-based LLM pretraining
+beats random shuffling under a constant learning rate and loses that advantage under standard
+decay, and conclude that data curricula have to be co-designed with the optimizer rather than
+studied apart from it. Their setting is data quality rather than a deficit window, but the
+structural point is the one in our limitations: **where something sits in the data order and
+where it sits on the learning-rate schedule are not separable unless a design separates
+them.** Ours does not. Together with Pawlak's restart result, this makes the schedule the
+first thing we would vary next, ahead of scale.
 
 **Corpus.** Eldan and Li's TinyStories provides a corpus at which models of this size produce
 readable, measurable language behaviour.
@@ -366,7 +407,14 @@ thing the preregistration produced.
 - The t-interval on α is a normality assumption at eight seeds. The primary contrast is an
   exact permutation test and does not depend on it.
 - The power law is fitted over an 8× budget range and is an extrapolation outside it.
-- The late onset is fixed at half the clean budget by fiat.
+- The late onset is fixed at half the clean budget by fiat, and there are only two onsets, so
+  the shape of the onset curve is not identified.
+- **Onset and learning-rate position are confounded by construction.** Moving the deficit
+  window moves it along the cosine schedule at the same time, so "when in training" and "at
+  what learning rate" cannot be separated here. Pawlak (2025) reports that restarting the
+  rate undoes critical-period damage in vision, which is direct evidence that the schedule
+  position is doing work in this class of effect. Separating the two needs a design that
+  holds one fixed while moving the other.
 - Top-rung precision limits everything: the gap there is about seven times the baseline seed
   SD, and log-space fitting turns top-rung noise into exponent noise. This is what produced
   the v4 outlier and, through the margin, the v4 verdict.
@@ -419,6 +467,10 @@ Kornblith, S., Norouzi, M., Lee, H., & Hinton, G. (2019). Similarity of Neural N
 Representations Revisited. *International Conference on Machine Learning*. arXiv:1905.00414.
 *Source of the CKA measure the design registered and never produced; see Section 4.*
 
+Luo, K., Sun, Z., Wen, H., Shi, X., Cui, J., Dang, C., Lyu, K., & Chen, W. (2025). How
+Learning Rate Decay Wastes Your Best Data in Curriculum-Based LLM Pretraining.
+arXiv:2511.18903.
+
 Pawlak, S. (2025). On the Occurence of Critical Learning Periods in Neural Networks.
 arXiv:2510.09687. *The misspelling is the published title's.* Experiments are on vision
 networks, replicating and extending Achille et al.
@@ -429,3 +481,11 @@ ICLR 2024 publication, and Constantinescu et al. from the 2024 preprint to the 2
 volume. The frozen `preregistration.md` carries the earlier forms and is not edited to match —
 a citation year is not part of the registered design, and the freeze is worth more than the
 tidiness.
+
+The same pass changed a claim rather than a date. Earlier drafts said this result runs
+"opposite to every critical-period account"; reading the cited onset experiment showed that
+Achille et al.'s own onset curve is non-monotonic, so no such account was being described.
+Section 5 now states the relationship instead of asserting a contradiction, and
+`deviations/2026-08-16-c4-statement-overreaches-its-own-guard.md` records that the frozen
+register had already forbidden the wider reading, that the narrower sentence governs, and that
+`CLAIMS.md` is deliberately left unedited.
