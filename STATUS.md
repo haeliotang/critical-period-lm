@@ -758,6 +758,18 @@ their endpoint is a level where ours is a rate. `CLAIMS.md` C4 had already forbi
 only the mutable prose in `README.md` and `paper/draft.md` was corrected. **The verdict is
 unaffected** — `REVERSE_ONSET_EFFECT` names a relation between two measured exponents.
 
+`paper/arr/` is the ACL-format build of the same text, anonymized for review
+(`\usepackage[review]{acl}`, official style files unmodified). `make paper` produces it and
+depends on `make figure`, so the typeset paper cannot drift from the run records. **6 pages
+against an 8-page limit**; Limitations and references do not count toward it.
+
+Anonymity audited: PDF `/Author` and `/Title` empty, the figure carries only matplotlib
+producer strings and no filesystem paths, and no name, handle or repository URL appears in
+`main.tex` or `custom.bib`. **Three things remain and none of them is writing:** create the
+anonymous repository mirror and replace the `ANONYMIZED` placeholder in §7's footnote, mirror
+the working tree rather than the history (tag annotations and commit authorship carry a real
+name even where file contents do not), and register with ARR as a reviewer.
+
 **Not submitted.** BabyLM 2026 closed on 20 July (ARR commitment 14 August); the workshop is
 24–29 October at EMNLP. The next open ARR cycle is **12 October 2026** (commitment 20 December,
 to NAACL 2027 / COLING 2027); ARR now requires every author to register as a reviewer, with an

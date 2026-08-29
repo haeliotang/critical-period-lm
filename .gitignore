@@ -27,6 +27,18 @@ calibration/
 # Local scratch. Research artifacts must be added intentionally.
 tmp/
 
+# LaTeX build artifacts. main.pdf is committed deliberately: it is the artifact
+# a reviewer reads, and regenerating it needs a TeX install this repo does not
+# otherwise require.
+paper/arr/*.aux
+paper/arr/*.bbl
+paper/arr/*.blg
+paper/arr/*.fdb_latexmk
+paper/arr/*.fls
+paper/arr/*.log
+paper/arr/*.out
+paper/arr/build.log
+
 # Editors and operating systems
 .DS_Store
 .idea/
