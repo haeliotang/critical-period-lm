@@ -729,6 +729,29 @@ wrong lets bad pipelines vote, and a spread manufactured that way says nothing.
 - The absolute lag-versus-scar question remains out of scope.
 - `drafts/v3-wsd-design.md` and `drafts/v5-design.md` record paths not taken.
 
+## MLX is not run-to-run deterministic, and it does not matter here
+
+Found by `tools/branch_replay_check.py` while testing whether the trunk-branch design in
+`drafts/v6-alt-wsd-design.md` is buildable. **Two runs of an identical config in separate
+processes diverge** — at around step 28 in the 150-step probe — and end with different
+weights. Bit-exact reproduction is unavailable on this platform to a run compared against
+itself, so it was never a fair criterion for a branch.
+
+Measured, seed 99, held-out loss:
+
+| horizon | two straight runs | straight vs branched | baseline seed SD |
+| --- | --- | --- | --- |
+| 150 steps | 6.26e-07 | 1.04e-07 | 0.00235 – 0.00975 |
+| 600 steps | 6.71e-08 | 1.12e-07 | " |
+
+**Four orders of magnitude below the smallest seed scatter the study resolves**, and the
+branch is no worse than repetition. Nothing in `results/registered/` is affected: the effects
+reported there are 0.02–0.21 nats and the seed SD is 0.002–0.010. What is affected is the
+wording of any claim that re-running a config reproduces a record — it reproduces it to about
+seven decimal places, not exactly, and the run records were never bit-reproducible in the
+first place. A check at the full trunk length (4,320 steps) is running, because divergence
+compounds with horizon and the two probes above are short.
+
 ## Paper
 
 `paper/draft.md` carries both registered results, the C4 provenance disclosure, and Section 4
