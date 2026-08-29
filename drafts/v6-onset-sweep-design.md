@@ -217,9 +217,16 @@ Two argue for waiting:
   fails.
 
 **Recommendation: do not authorize this file as written.** Resolve §5 first — decide whether
-the onset axis or the schedule axis is the one worth 50 hours. If the onset axis wins, this
-design is ready to be turned into a preregistration; if the schedule axis wins, `v3-wsd` is,
-and v6 becomes its second study rather than its first.
+the onset axis or the schedule axis is the one worth 50 hours.
+
+> **Update, same day.** §5's alternative has been costed and written up as
+> [`v6-alt-wsd-design.md`](v6-alt-wsd-design.md). It is **34% cheaper** than this design
+> (31.6 h against 48.1 h), because a shared trunk runs the common prefix once instead of three
+> times, and it removes the confound rather than mapping it. The paragraph above assumed the
+> WSD path would cost more; it does not. What it costs instead is a trainer that does not
+> exist and one implementation risk — whether branching from a checkpoint is bit-exact under
+> MLX — which is an hour's test to settle. **Settle that test before choosing between these
+> two files.**
 
 ## 7. Not authorized
 

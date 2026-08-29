@@ -1,5 +1,12 @@
 # Design v3 draft: fixed wound, WSD schedule, trunk-branch ladder
 
+> **Superseded, and kept unedited as a record.** Rewritten against current knowledge as
+> [`v6-alt-wsd-design.md`](v6-alt-wsd-design.md). Two things below are now known to be wrong:
+> the `gap(T) = c/T + d` endpoint of §5 assumes the baseline log-slope `b` is constant, and
+> ladder 2 measured it falling ~30% per doubling — the same defect that killed the `α = 1`
+> anchor. And §6's five seeds is the count that returned `INCONCLUSIVE` in v4. The schedule
+> and trunk-branch machinery of §2–§4 survive intact and are the reason the rewrite exists.
+
 **Status: DRAFT. Not active, not frozen, not the design of record.**
 The design of record is `preregistration.md` at `v2-draft`, under which ladder 1 is
 currently running. This document exists so that the v3 decision, when it is made, is made
