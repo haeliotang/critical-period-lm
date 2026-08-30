@@ -739,18 +739,33 @@ itself, so it was never a fair criterion for a branch.
 
 Measured, seed 99, held-out loss:
 
-| horizon | two straight runs | straight vs branched | baseline seed SD |
+| horizon | two straight runs | straight vs branched | ratio |
 | --- | --- | --- | --- |
-| 150 steps | 6.26e-07 | 1.04e-07 | 0.00235 – 0.00975 |
-| 600 steps | 6.71e-08 | 1.12e-07 | " |
+| 150 steps | 6.26e-07 | 1.04e-07 | 0.17 |
+| 600 steps | 6.71e-08 | 1.12e-07 | 1.67 |
+| **4,320 steps** (the real trunk) | **1.49e-08** | **1.86e-08** | **1.25** |
 
-**Four orders of magnitude below the smallest seed scatter the study resolves**, and the
-branch is no worse than repetition. Nothing in `results/registered/` is affected: the effects
-reported there are 0.02–0.21 nats and the seed SD is 0.002–0.010. What is affected is the
-wording of any claim that re-running a config reproduces a record — it reproduces it to about
-seven decimal places, not exactly, and the run records were never bit-reproducible in the
-first place. A check at the full trunk length (4,320 steps) is running, because divergence
-compounds with horizon and the two probes above are short.
+Against a baseline seed SD of 0.00235–0.00975. **The branch is no worse than repetition, and
+both are five orders of magnitude below the smallest seed scatter the study resolves.**
+
+The worry was that divergence compounds with horizon. It does not: the absolute size *falls*
+with horizon, because the learning rate decays and the two trajectories are pulled together
+rather than apart. Weight drift does grow (3.6e-06 at 600 steps to 7.1e-06 at 4,320) while the
+held-out loss does not follow it — the weights wander inside a flat basin and the measurement
+stays put.
+
+Nothing in `results/registered/` is affected: the effects reported there are 0.02–0.21 nats.
+What is affected is the wording of any claim that re-running a config reproduces a record. It
+reproduces it to about **eight decimal places at the length registered runs actually are**,
+not exactly, and the records were never bit-reproducible in the first place.
+
+**Consequence for the next study:** the implementation risk in `drafts/v6-alt-wsd-design.md`
+is retired, and the WSD trunk-branch design is the one to build. It is cheaper (31.6 h against
+48.1 h) and it separates onset from learning-rate position instead of mapping the two
+confounded.
+
+Scope of the PASS, unchanged from what the tool prints: this machine, this MLX version, this
+model, these horizons. Not established across MLX versions or hardware.
 
 ## Paper
 

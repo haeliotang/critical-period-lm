@@ -13,7 +13,7 @@ LADDER_BASE ?= 2700
 SEEDS ?= 0 1 2 3 4
 REGISTERED_BASE ?= 1350
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness figure paper
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness figure paper wsd-smoke branch-check
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -123,6 +123,17 @@ figure:
 # paper cannot drift from the registered records.
 paper: figure
 	cd paper/arr && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+
+# Draft infrastructure for the v6 trunk-branch design. Writes to calibration/wsd/, because
+# v6 is not frozen and a registered mode would have nothing to verify against.
+wsd-smoke:
+	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.wsd_train \
+		--condition smoke --seed 18 --deficit shuffle --onset 600
+
+# The standing gate for the trunk-branch design: does resuming move the endpoint more than
+# running twice does? Must pass at the registered trunk length before v6 may be frozen.
+branch-check:
+	$(PYTHON) tools/branch_replay_check.py --steps 4320 --branch-at 2880
 
 # Registered runs may not exist before the freeze tag does.
 runs-check:

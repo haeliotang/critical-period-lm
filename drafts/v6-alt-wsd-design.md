@@ -183,21 +183,38 @@ whose answer is ambiguous by construction. B is cheap in compute and expensive i
 answers the question you actually have — but only if a piece of infrastructure that has never
 been built works the first time.
 
-## 8. Recommendation
+## 8. Decision: B, and the risk is retired
 
-**Retire B's implementation risk before choosing.** The branch-and-replay test is small: run
-150 steps straight through, run 100 + checkpoint + 50, compare the final weights bit for bit.
-That is under an hour of work and it decides between two designs that differ by 16 hours of
-compute and by whether the result means anything.
+**Settled by measurement, 2026-08-29.** `tools/branch_replay_check.py`.
 
-- **If branching is bit-exact:** run B. It is cheaper, and A's curve is a description of the
-  cosine schedule wearing the costume of a finding.
-- **If branching is not bit-exact:** run A, and report its curve with the confound stated in
-  the abstract rather than the limitations — because then the confound is not a caveat, it is
-  the result's scope.
+The test was originally specified as bit-for-bit equality between a resumed run and an
+uninterrupted one. **That criterion was wrong and the control proved it:** two runs of an
+identical config in separate processes also fail it, diverging around step 28. MLX is not
+run-to-run deterministic here, so bit-exactness is unavailable to a run compared against
+itself and demanding it of a branch measures the platform, not the design.
 
-This reverses the recommendation in the cosine draft, which was written before the trunk
-sharing was costed. **The reversal is the point of writing both down.**
+Re-run with a control and the registered endpoint — does branching move the held-out loss more
+than merely running twice does?
+
+| horizon | two straight runs | straight vs branched | ratio |
+| --- | --- | --- | --- |
+| 150 steps | 6.26e-07 | 1.04e-07 | 0.17 |
+| 600 steps | 6.71e-08 | 1.12e-07 | 1.67 |
+| **4,320 steps** — this design's trunk | **1.49e-08** | **1.86e-08** | **1.25** |
+
+Branching costs 25% more than repetition at the length that matters, and both are **five orders
+of magnitude below the baseline seed SD** of 0.00235. Divergence does not compound with
+horizon; it shrinks, because the decaying learning rate pulls the trajectories together. Weight
+drift grows while the measurement does not follow — the weights wander in a flat basin.
+
+**Build this design.** The cosine sweep in [`v6-onset-sweep-design.md`](v6-onset-sweep-design.md)
+remains the fallback if the trainer turns out to be harder than the probe suggests, but it is
+no longer the recommendation: it costs 16 more hours to map a function that this design
+un-confounds.
+
+Scope of the pass, unchanged from what the tool prints: this machine, this MLX version, this
+model, these horizons. A branch-replay check stays a **standing gate** — it must pass at the
+registered trunk length before v6 is frozen, not just today.
 
 ## 9. Not authorized
 
