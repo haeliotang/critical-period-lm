@@ -13,7 +13,7 @@ LADDER_BASE ?= 2700
 SEEDS ?= 0 1 2 3 4
 REGISTERED_BASE ?= 1350
 
-.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness figure paper wsd-smoke branch-check
+.PHONY: check compile test required-files-check rehearsal freeze freeze-check runs-check data calibrate ladder registered-ladder report report-calibration robustness figure paper wsd-smoke branch-check wsd-pilot
 
 # Everything that must pass before the design may be frozen.
 check: compile required-files-check test freeze-check runs-check
@@ -129,6 +129,25 @@ paper: figure
 wsd-smoke:
 	PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.wsd_train \
 		--condition smoke --seed 18 --deficit shuffle --onset 600
+
+# v6 margin-calibration pilot. Exploratory: it exists to measure the control's per-seed
+# exponent scatter, which sets the registered margin. Seeds 18-25 are spent here and are
+# therefore unavailable to the registered run, which uses 26-33 -- reusing them would make
+# that run a recomputation rather than a replication.
+WSD_PILOT_SEEDS ?= 18 19 20 21 22 23 24 25
+WSD_PILOT_ONSET ?= 600
+
+wsd-pilot:
+	@for s in $(WSD_PILOT_SEEDS); do \
+		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.wsd_train \
+			--condition baseline --seed $$s || exit 1; \
+		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.wsd_train \
+			--condition fixed_$(WSD_PILOT_ONSET) --seed $$s \
+			--deficit fixed --onset $(WSD_PILOT_ONSET) || exit 1; \
+		PYTHONPATH=$(PYTHONPATH) $(PYTHON) -m critical_period_lm.wsd_train \
+			--condition shuffle_$(WSD_PILOT_ONSET) --seed $$s \
+			--deficit shuffle --onset $(WSD_PILOT_ONSET) || exit 1; \
+	done
 
 # The standing gate for the trunk-branch design: does resuming move the endpoint more than
 # running twice does? Must pass at the registered trunk length before v6 may be frozen.
